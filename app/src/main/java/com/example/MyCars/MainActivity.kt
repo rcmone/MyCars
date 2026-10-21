@@ -43,13 +43,16 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // 1. OCULTAR LA BARRA SUPERIOR DEL SISTEMA (La que pone MyCars en gris)
+        actionBar?.hide()
+
         rootLayout = FrameLayout(this).apply { setBackgroundColor(bgColor) }
         contentLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         
         setContentView(rootLayout)
         
-        cargarDatos() // Cargamos los datos nada más abrir la app
+        cargarDatos()
         mostrarPantallaPrincipal()
     }
 
@@ -88,7 +91,6 @@ class MainActivity : Activity() {
     }
 
     fun cargarDatos() {
-        // Cargar lista de coches
         try {
             val jsonString = openFileInput("coches.json").bufferedReader().use { it.readText() }
             val jsonArray = JSONArray(jsonString)
@@ -97,12 +99,10 @@ class MainActivity : Activity() {
                 listaCoches.add(jsonArray.getString(i))
             }
         } catch (e: java.io.FileNotFoundException) {
-            // Primera vez, no existe el archivo
         } catch (e: Exception) {
             e.printStackTrace()
         }
 
-        // Cargar gastos
         try {
             val jsonString = openFileInput("gastos.json").bufferedReader().use { it.readText() }
             val jsonArray = JSONArray(jsonString)
@@ -126,7 +126,6 @@ class MainActivity : Activity() {
             }
             colorIndex = listaGastos.size
         } catch (e: java.io.FileNotFoundException) {
-            // Primera vez, no existe el archivo
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -142,22 +141,20 @@ class MainActivity : Activity() {
 
         val header = RelativeLayout(this).apply { setPadding(50, 80, 50, 20) }
         
-        val titleLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        // 2. TÍTULO CENTRADO Y EN NARANJA (Sin subtítulo)
         val title = TextView(this).apply {
-            text = "Gastos"
+            text = "My Cars"
             setTextColor(orangeColor)
             textSize = 32f
             setTypeface(null, Typeface.BOLD)
+            // Centramos el título horizontalmente
+            val params = RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT)
+            params.addRule(RelativeLayout.CENTER_HORIZONTAL)
+            layoutParams = params
         }
-        val subtitle = TextView(this).apply {
-            text = "Control de vencimientos"
-            setTextColor(Color.LTGRAY)
-            textSize = 14f
-        }
-        titleLayout.addView(title)
-        titleLayout.addView(subtitle)
-        header.addView(titleLayout)
+        header.addView(title)
 
+        // ICONOS A LA DERECHA
         val iconsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
