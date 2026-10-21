@@ -25,7 +25,8 @@ import java.util.*
 class MainActivity : Activity() {
 
     val listaGastos = mutableListOf<Gasto>()
-    val listaCoches = mutableListOf<String>()
+    // Aquí definimos tus dos coches por defecto
+    val listaCoches = mutableListOf("Coche A", "Coche B") 
     var colorIndex = 0
 
     val bgColor = Color.parseColor("#121212")
@@ -54,7 +55,6 @@ class MainActivity : Activity() {
         rootLayout.removeAllViews()
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
-        // --- CABECERA ---
         val header = RelativeLayout(this).apply { setPadding(50, 80, 50, 20) }
         
         val titleLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -101,7 +101,6 @@ class MainActivity : Activity() {
         header.addView(iconsLayout)
         contentLayout.addView(header)
 
-        // --- BUSCADOR ---
         val searchBar = EditText(this).apply {
             hint = "🔍  Buscar..."
             setHintTextColor(Color.GRAY)
@@ -118,7 +117,6 @@ class MainActivity : Activity() {
         }
         contentLayout.addView(searchBar)
 
-        // --- LISTA DE GASTOS ---
         val scrollView = ScrollView(this)
         val listLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 0, 50, 150) }
         scrollView.addView(listLayout)
@@ -129,7 +127,6 @@ class MainActivity : Activity() {
             val filtrados = listaGastos.filter { it.coche.contains(filtro, true) || it.tipo.contains(filtro, true) }
             
             for (g in filtrados.reversed()) {
-                // --- SOLUCIÓN 1: Tarjetas sin solapamiento usando Layouts ---
                 val card = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(40, 40, 40, 40)
@@ -142,14 +139,13 @@ class MainActivity : Activity() {
                     layoutParams = lp
                 }
 
-                // Fila superior: Título e Importe
                 val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
                 val txtTitulo = TextView(this).apply {
                     text = "${g.coche} - ${g.tipo}"
                     setTextColor(Color.WHITE)
                     textSize = 18f
                     setTypeface(null, Typeface.BOLD)
-                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) // Peso 1 para empujar a la derecha
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 }
                 val txtImporte = TextView(this).apply {
                     text = "${g.importe} €"
@@ -160,7 +156,6 @@ class MainActivity : Activity() {
                 topRow.addView(txtTitulo)
                 topRow.addView(txtImporte)
 
-                // Fila inferior: Detalles y Fecha
                 val botRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 10, 0, 0) }
                 val txtSubtitulo = TextView(this).apply {
                     var sub = ""
@@ -193,7 +188,6 @@ class MainActivity : Activity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         })
 
-        // --- SOLUCIÓN 4: Botón flotante solo dice "Añadir" ---
         val fab = Button(this).apply {
             text = "＋ Añadir"
             setTextColor(Color.BLACK)
@@ -228,7 +222,7 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // FORMULARIO NUEVO GASTO
+    // FORMULARIO NUEVO GASTO (CON DESPLEGABLE)
     // ==========================================
     fun mostrarFormularioNuevoGasto() {
         contentLayout.removeAllViews()
@@ -256,13 +250,37 @@ class MainActivity : Activity() {
         header.addView(btnBack); header.addView(title)
         layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
 
-        // --- SOLUCIÓN 3: En vez de desplegable, escribes el nombre del coche ---
-        val inputCoche = EditText(this).apply { 
-            hint = "Nombre del coche (ej. Coche A, Moto...)"; 
-            setTextColor(Color.WHITE) 
-        }
-        layout.addView(inputCoche)
+        // --- SELECTOR DE COCHE (DESPLEGABLE) ---
+        val spinnerCoche = Spinner(this)
+        val adapterCoche = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listaCoches)
+        spinnerCoche.adapter = adapterCoche
+        layout.addView(spinnerCoche)
 
+        // Botón para añadir más coches en el futuro
+        val btnAddCoche = Button(this).apply {
+            text = "+ Añadir nuevo coche a la lista"
+            setBackgroundColor(Color.TRANSPARENT)
+            setTextColor(orangeColor)
+            setOnClickListener {
+                val input = EditText(this@MainActivity).apply { setTextColor(Color.BLACK) } // Texto negro para que se lea en el fondo blanco del diálogo
+                AlertDialog.Builder(this@MainActivity)
+                    .setTitle("Nombre del nuevo coche")
+                    .setView(input)
+                    .setPositiveButton("Añadir") { _, _ ->
+                        val nombre = input.text.toString().trim()
+                        if (nombre.isNotEmpty() && !listaCoches.contains(nombre)) {
+                            listaCoches.add(nombre)
+                            adapterCoche.notifyDataSetChanged()
+                            spinnerCoche.setSelection(listaCoches.size - 1) // Selecciona el que acaba de crear
+                        }
+                    }
+                    .setNegativeButton("Cancelar", null)
+                    .show()
+            }
+        }
+        layout.addView(btnAddCoche)
+
+        // Selector de tipo de gasto
         val spinnerGasto = Spinner(this)
         val tipos = arrayOf("Combustible", "Mantenimiento", "Otros")
         val adapterGasto = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, tipos)
@@ -289,19 +307,17 @@ class MainActivity : Activity() {
             setTypeface(null, Typeface.BOLD)
             setPadding(0, 30, 0, 30)
             setOnClickListener {
-                val coche = inputCoche.text.toString().trim()
+                val coche = spinnerCoche.selectedItem.toString()
                 val importe = inputImporte.text.toString()
                 
-                if (coche.isNotEmpty() && importe.isNotEmpty()) {
-                    if (!listaCoches.contains(coche)) listaCoches.add(coche)
-                    
+                if (importe.isNotEmpty()) {
                     val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
                     listaGastos.add(Gasto(coche, spinnerGasto.selectedItem.toString(), inputLitros.text.toString(), inputKm.text.toString(), importe, fecha, cardColors[colorIndex % cardColors.size]))
                     colorIndex++
                     Toast.makeText(this@MainActivity, "Guardado", Toast.LENGTH_SHORT).show()
                     mostrarPantallaPrincipal()
                 } else {
-                    Toast.makeText(this@MainActivity, "El nombre del coche y el importe son obligatorios", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "El importe es obligatorio", Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -367,7 +383,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // --- SOLUCIÓN 2: Gráfico circular perfecto ---
     class PieChartView(context: Context) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private val rectF = RectF()
@@ -383,8 +398,6 @@ class MainActivity : Activity() {
             val total = data.values.sum()
             var startAngle = -90f
             val padding = 20f
-            
-            // Forzar a que sea un círculo perfecto (usando el ancho o alto mínimo)
             val minSize = width.coerceAtMost(height).toFloat()
             val radius = (minSize / 2f) - padding
             val centerX = width / 2f
@@ -401,15 +414,11 @@ class MainActivity : Activity() {
                 colorIdx++
             }
             
-            // Agujero interior para efecto Donut
             paint.color = Color.parseColor("#121212")
             canvas.drawCircle(centerX, centerY, radius * 0.5f, paint)
         }
     }
 
-    // ==========================================
-    // IMPORTAR / EXPORTAR CSV
-    // ==========================================
     fun exportarCSV() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE); type = "text/csv"; putExtra(Intent.EXTRA_TITLE, "gastos.csv")
@@ -442,12 +451,11 @@ class MainActivity : Activity() {
                     contentResolver.openInputStream(uri)?.use { input ->
                         val lines = input.bufferedReader().readLines()
                         listaGastos.clear()
-                        listaCoches.clear()
                         for (i in 1 until lines.size) {
                             val p = lines[i].split(",")
                             if (p.size >= 6) {
                                 listaGastos.add(Gasto(p[0], p[1], p[2], p[3], p[4], p[5], cardColors[colorIndex++ % cardColors.size]))
-                                if (!listaCoches.contains(p[0])) listaCoches.add(p[0])
+                                if (!listaCoches.contains(p[0])) listaCoches.add(p[0]) // Añade el coche si venía del CSV
                             }
                         }
                         mostrarPantallaPrincipal()
