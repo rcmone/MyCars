@@ -1,4 +1,7 @@
-package com.example.MyCars // ⚠️ ESTO ES VITAL: Debe coincidir con tu carpeta exacta
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
 
 import android.app.Activity
 import android.os.Bundle
