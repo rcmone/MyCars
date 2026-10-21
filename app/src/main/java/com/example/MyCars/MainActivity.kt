@@ -1,7 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-
-    <application
+package com.example.MyCars
 
 import android.app.Activity
 import android.os.Bundle
@@ -12,7 +9,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         
         val textView = TextView(this)
-        textView.text = "¡Hola! La app funciona correctamente."
+        textView.text = "¡Hola! La app funciona."
         textView.textSize = 24f
         textView.setPadding(50, 50, 50, 50)
         
