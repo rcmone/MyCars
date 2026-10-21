@@ -3,10 +3,10 @@ package com.example.MyCars // ⚠️ Asegúrate de que esto coincide con tu paqu
 import android.os.Bundle
 import android.view.ViewGroup
 import android.widget.*
-import androidx.appcompat.app.AppCompatActivity
+import android.app.Activity
 import android.graphics.Typeface
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
