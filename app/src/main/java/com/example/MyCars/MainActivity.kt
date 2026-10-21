@@ -97,7 +97,7 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             textSize = 28f
             setPadding(0, 0, 0, 15)
-            setOnClickListener { showMenu(view) }
+setOnClickListener { v -> showMenu(v) }
         }
 
         iconsLayout.addView(iconChart)
