@@ -25,7 +25,7 @@ import java.util.*
 class MainActivity : Activity() {
 
     val listaGastos = mutableListOf<Gasto>()
-    val listaCoches = mutableListOf("Coche A", "Coche B") 
+    val listaCoches = mutableListOf("Coche Principal") 
     var colorIndex = 0
 
     val bgColor = Color.parseColor("#121212")
@@ -80,7 +80,6 @@ class MainActivity : Activity() {
             layoutParams = params
         }
 
-        // ICONO DE ESTADÍSTICAS (NUEVO)
         val iconStats = TextView(this).apply {
             text = "📈"
             textSize = 24f
@@ -160,9 +159,29 @@ class MainActivity : Activity() {
                     setTextColor(Color.WHITE)
                     textSize = 20f
                     setTypeface(null, Typeface.BOLD)
+                    setPadding(0, 0, 20, 0) // Espacio para el botón de borrar
                 }
+                
+                // BOTÓN DE ELIMINAR (🗑️)
+                val btnDelete = TextView(this).apply {
+                    text = "🗑️"
+                    textSize = 20f
+                    setOnClickListener {
+                        AlertDialog.Builder(this@MainActivity)
+                            .setTitle("Eliminar gasto")
+                            .setMessage("¿Estás seguro de que quieres borrar este gasto?")
+                            .setPositiveButton("Sí") { _, _ ->
+                                listaGastos.remove(g)
+                                renderLista(searchBar.text.toString())
+                            }
+                            .setNegativeButton("No", null)
+                            .show()
+                    }
+                }
+
                 topRow.addView(txtTitulo)
                 topRow.addView(txtImporte)
+                topRow.addView(btnDelete)
 
                 val botRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 10, 0, 0) }
                 val txtSubtitulo = TextView(this).apply {
@@ -185,6 +204,37 @@ class MainActivity : Activity() {
 
                 card.addView(topRow)
                 card.addView(botRow)
+
+                // MOSTRAR OBSERVACIONES Y ARCHIVO ADJUNTO SI EXISTEN
+                if (g.observaciones.isNotEmpty()) {
+                    val txtObs = TextView(this).apply {
+                        text = "📝 ${g.observaciones}"
+                        setTextColor(Color.WHITE)
+                        textSize = 14f
+                        setPadding(0, 10, 0, 0)
+                    }
+                    card.addView(txtObs)
+                }
+
+                if (g.documentoUri != null) {
+                    val txtDoc = TextView(this).apply {
+                        text = "📎 Ver documento adjunto"
+                        setTextColor(Color.parseColor("#FFD54F")) // Amarillo claro para que resalte
+                        textSize = 14f
+                        setPadding(0, 10, 0, 0)
+                        setOnClickListener {
+                            try {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(g.documentoUri))
+                                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(this@MainActivity, "No hay app para abrir este archivo", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                    card.addView(txtDoc)
+                }
+
                 listLayout.addView(card)
             }
         }
@@ -231,12 +281,15 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // FORMULARIO NUEVO GASTO
+    // FORMULARIO NUEVO GASTO (CON OBSERVACIONES Y ADJUNTOS)
     // ==========================================
+    var uriSeleccionada: Uri? = null // Variable global temporal para el formulario
+
     fun mostrarFormularioNuevoGasto() {
         contentLayout.removeAllViews()
         rootLayout.removeAllViews()
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        uriSeleccionada = null // Reiniciamos al abrir el formulario
 
         val scroll = ScrollView(this)
         val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 80, 50, 50) }
@@ -302,32 +355,65 @@ class MainActivity : Activity() {
         spinnerGasto.adapter = adapterGasto
         layout.addView(spinnerGasto)
 
+        // Campos generales
+        val inputImporte = EditText(this).apply { hint = "Importe total (€)"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setTextColor(Color.WHITE) }
+        layout.addView(inputImporte)
+
+        // --- CAMPOS ESPECÍFICOS DE COMBUSTIBLE ---
         val inputLitros = EditText(this).apply { hint = "Cantidad (Litros o kWh)"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setTextColor(Color.WHITE) }
         val inputKm = EditText(this).apply { hint = "Kilometraje actual (Km)"; inputType = InputType.TYPE_CLASS_NUMBER; setTextColor(Color.WHITE) }
-        val inputImporte = EditText(this).apply { hint = "Importe total (€)"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setTextColor(Color.WHITE) }
-        
-        // CASILLA DE DEPÓSITO LLENO (CLAVE PARA EL CONSUMO)
         val checkLleno = CheckBox(this).apply {
             text = "Depósito lleno"
             setTextColor(Color.WHITE)
             buttonTintList = android.content.res.ColorStateList.valueOf(orangeColor)
-            visibility = View.VISIBLE
+        }
+        layout.addView(inputLitros)
+        layout.addView(checkLleno)
+        layout.addView(inputKm)
+
+        // --- CAMPOS ESPECÍFICOS DE MANTENIMIENTO / OTROS ---
+        val layoutExtras = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+        
+        val inputObservaciones = EditText(this).apply { hint = "Observaciones (ej. Cambio de aceite)"; setTextColor(Color.WHITE) }
+        
+        val btnAdjuntar = Button(this).apply {
+            text = "📎 Adjuntar documento o foto"
+            setBackgroundColor(Color.parseColor("#333333"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                val intent = Intent(Intent.ACTION_GET_CONTENT)
+                intent.type = "*/*" // Permite cualquier archivo (fotos, pdf, etc.)
+                startActivityForResult(intent, 300)
+            }
+        }
+        
+        val txtArchivoSeleccionado = TextView(this).apply { 
+            text = "Ningún archivo seleccionado"
+            setTextColor(Color.LTGRAY)
+            setPadding(0, 10, 0, 10)
         }
 
-        layout.addView(inputLitros)
-        layout.addView(checkLleno) // Añadimos el check
-        layout.addView(inputKm)
-        layout.addView(inputImporte)
+        layoutExtras.addView(inputObservaciones)
+        layoutExtras.addView(btnAdjuntar)
+        layoutExtras.addView(txtArchivoSeleccionado)
+        layout.addView(layoutExtras)
 
+        // Guardamos la referencia al TextView para actualizarlo desde onActivityResult
+        this.txtArchivoGlobal = txtArchivoSeleccionado
+
+        // LÓGICA DE VISIBILIDAD SEGÚN EL TIPO DE GASTO
         spinnerGasto.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 if (tipos[position] == "Combustible") {
                     inputLitros.visibility = View.VISIBLE
                     checkLleno.visibility = View.VISIBLE
+                    inputKm.visibility = View.VISIBLE
+                    layoutExtras.visibility = View.GONE
                 } else {
                     inputLitros.visibility = View.GONE
                     checkLleno.visibility = View.GONE
-                    inputLitros.text.clear()
+                    inputKm.visibility = View.VISIBLE // Km también útil para mantenimiento
+                    layoutExtras.visibility = View.VISIBLE
                 }
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -353,7 +439,9 @@ class MainActivity : Activity() {
                         importe = importe,
                         fecha = fecha,
                         colorHex = cardColors[colorIndex % cardColors.size],
-                        depositoLleno = checkLleno.isChecked
+                        depositoLleno = checkLleno.isChecked,
+                        observaciones = inputObservaciones.text.toString(),
+                        documentoUri = uriSeleccionada?.toString()
                     ))
                     colorIndex++
                     Toast.makeText(this@MainActivity, "Guardado", Toast.LENGTH_SHORT).show()
@@ -366,8 +454,10 @@ class MainActivity : Activity() {
         layout.addView(btnGuardar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 40, 0, 0) })
     }
 
+    var txtArchivoGlobal: TextView? = null
+
     // ==========================================
-    // PANTALLA ESTADÍSTICAS DE COMBUSTIBLE
+    // PANTALLA ESTADÍSTICAS
     // ==========================================
     fun mostrarPantallaEstadisticas() {
         contentLayout.removeAllViews()
@@ -406,32 +496,19 @@ class MainActivity : Activity() {
 
         fun calcularStats(cocheSeleccionado: String) {
             statsLayout.removeAllViews()
-            
-            // 1. Filtrar repostajes de combustible con kilometraje válido
             val repostajes = listaGastos.filter { 
                 (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) &&
-                it.tipo == "Combustible" && 
-                it.litros.isNotEmpty() && 
-                it.km.isNotEmpty() 
+                it.tipo == "Combustible" && it.litros.isNotEmpty() && it.km.isNotEmpty() 
             }.sortedBy { it.km.toIntOrNull() ?: 0 }
 
             if (repostajes.size < 2) {
-                val txtError = TextView(this).apply {
-                    text = "Necesitas al menos 2 repostajes de combustible con kilómetros para calcular el consumo."
-                    setTextColor(Color.LTGRAY)
-                    textSize = 16f
-                }
-                statsLayout.addView(txtError)
+                statsLayout.addView(TextView(this).apply { text = "Necesitas al menos 2 repostajes con Km."; setTextColor(Color.LTGRAY) })
                 return
             }
 
-            var totalLitros = 0.0
-            var totalImporte = 0.0
+            var totalLitros = 0.0; var totalImporte = 0.0
             var consumos = mutableListOf<Double>()
-            
-            // Cálculo de Consumo Real (Método Full-to-Full)
-            var litrosAcumulados = 0.0
-            var ultimoKmLleno = repostajes.first().km.toIntOrNull() ?: 0
+            var litrosAcumulados = 0.0; var ultimoKmLleno = repostajes.first().km.toIntOrNull() ?: 0
 
             for (i in repostajes.indices) {
                 val r = repostajes[i]
@@ -439,74 +516,46 @@ class MainActivity : Activity() {
                 val importe = r.importe.toDoubleOrNull() ?: 0.0
                 val kmActual = r.km.toIntOrNull() ?: 0
 
-                totalLitros += litros
-                totalImporte += importe
-                litrosAcumulados += litros
+                totalLitros += litros; totalImporte += importe; litrosAcumulados += litros
 
                 if (r.depositoLleno && i > 0) {
                     val kmRecorridos = kmActual - ultimoKmLleno
-                    if (kmRecorridos > 0) {
-                        val consumo = (litrosAcumulados / kmRecorridos) * 100
-                        consumos.add(consumo)
-                    }
-                    litrosAcumulados = 0.0
-                    ultimoKmLleno = kmActual
+                    if (kmRecorridos > 0) consumos.add((litrosAcumulados / kmRecorridos) * 100)
+                    litrosAcumulados = 0.0; ultimoKmLleno = kmActual
                 }
             }
 
-            // Crear Tarjetas visuales
             fun agregarTarjeta(titulo: String, valor: String, sufijo: String) {
                 val card = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(40, 40, 40, 40)
-                    background = GradientDrawable().apply {
-                        setColor(Color.parseColor("#222222"))
-                        cornerRadius = 30f
-                    }
-                    val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                    lp.setMargins(0, 0, 0, 20)
-                    layoutParams = lp
+                    orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40)
+                    background = GradientDrawable().apply { setColor(Color.parseColor("#222222")); cornerRadius = 30f }
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 20) }
                 }
                 val tvTitulo = TextView(this).apply { text = titulo; setTextColor(Color.LTGRAY); textSize = 16f }
                 val rowVal = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
                 val tvValor = TextView(this).apply { text = valor; setTextColor(orangeColor); textSize = 32f; setTypeface(null, Typeface.BOLD) }
                 val tvSufijo = TextView(this).apply { text = " $sufijo"; setTextColor(Color.WHITE); textSize = 16f; setPadding(0, 0, 0, 5) }
-                
-                rowVal.addView(tvValor); rowVal.addView(tvSufijo)
-                card.addView(tvTitulo); card.addView(rowVal)
+                rowVal.addView(tvValor); rowVal.addView(tvSufijo); card.addView(tvTitulo); card.addView(rowVal)
                 statsLayout.addView(card)
             }
 
-            // Mostrar Resultados
-            if (consumos.isNotEmpty()) {
-                val consumoMedio = consumos.average()
-                agregarTarjeta("Consumo Medio", "%.2f".format(consumoMedio), "L/100km (o kWh/100km)")
-            } else {
-                agregarTarjeta("Consumo Medio", "--", "Faltan repostajes 'Llenos'")
-            }
+            if (consumos.isNotEmpty()) agregarTarjeta("Consumo Medio", "%.2f".format(consumos.average()), "L/100km")
+            else agregarTarjeta("Consumo Medio", "--", "Faltan repostajes 'Llenos'")
 
-            if (totalLitros > 0) {
-                val precioMedio = totalImporte / totalLitros
-                agregarTarjeta("Precio Medio", "%.3f".format(precioMedio), "€/L (o €/kWh)")
-            }
+            if (totalLitros > 0) agregarTarjeta("Precio Medio", "%.3f".format(totalImporte / totalLitros), "€/L")
 
             val kmTotales = (repostajes.last().km.toIntOrNull() ?: 0) - (repostajes.first().km.toIntOrNull() ?: 0)
-            if (kmTotales > 0) {
-                val costeKm = totalImporte / kmTotales
-                agregarTarjeta("Coste por Km", "%.3f".format(costeKm), "€/km")
-            }
+            if (kmTotales > 0) agregarTarjeta("Coste por Km", "%.3f".format(totalImporte / kmTotales), "€/km")
         }
 
         spinnerStats.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                calcularStats(spinnerStats.selectedItem.toString())
-            }
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { calcularStats(spinnerStats.selectedItem.toString()) }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
     }
 
     // ==========================================
-    // PANTALLA GRÁFICO DE TARTA (RESUMEN)
+    // PANTALLA GRÁFICO DE TARTA
     // ==========================================
     fun mostrarPantallaResumen() {
         contentLayout.removeAllViews()
@@ -518,39 +567,25 @@ class MainActivity : Activity() {
 
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val btnBack = TextView(this).apply {
-            text = "← Volver"
-            setTextColor(orangeColor)
-            textSize = 18f
+            text = "← Volver"; setTextColor(orangeColor); textSize = 18f
             setOnClickListener { mostrarPantallaPrincipal() }
         }
-        val title = TextView(this).apply {
-            text = "  Resumen Gráfico"
-            setTextColor(Color.WHITE)
-            textSize = 24f
-            setTypeface(null, Typeface.BOLD)
-        }
+        val title = TextView(this).apply { text = "  Resumen Gráfico"; setTextColor(Color.WHITE); textSize = 24f; setTypeface(null, Typeface.BOLD) }
         header.addView(btnBack); header.addView(title)
         layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
 
         val spinnerResumen = Spinner(this)
         val opcionesResumen = mutableListOf("Todos los coches"); opcionesResumen.addAll(listaCoches.distinct())
-        val adapterResumen = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, opcionesResumen)
-        spinnerResumen.adapter = adapterResumen
+        spinnerResumen.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, opcionesResumen)
         layout.addView(spinnerResumen)
 
-        val txtTotal = TextView(this).apply {
-            setTextColor(Color.WHITE); textSize = 22f; setTypeface(null, Typeface.BOLD); setPadding(0, 30, 0, 30)
-        }
+        val txtTotal = TextView(this).apply { setTextColor(Color.WHITE); textSize = 22f; setTypeface(null, Typeface.BOLD); setPadding(0, 30, 0, 30) }
         layout.addView(txtTotal)
 
         val pieChart = PieChartView(this)
         layout.addView(pieChart, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 500))
 
-        val legendLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(50, 20, 50, 20)
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
+        val legendLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 20, 50, 20); gravity = Gravity.CENTER_HORIZONTAL }
         layout.addView(legendLayout)
 
         spinnerResumen.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -622,6 +657,9 @@ class MainActivity : Activity() {
         }
     }
 
+    // ==========================================
+    // CSV Y RESULTADOS DE ACTIVIDADES
+    // ==========================================
     fun exportarCSV() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE); type = "text/csv"; putExtra(Intent.EXTRA_TITLE, "gastos.csv")
@@ -638,13 +676,21 @@ class MainActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        
+        // RESULTADO ADJUNTAR ARCHIVO
+        if (requestCode == 300 && resultCode == RESULT_OK && data?.data != null) {
+            uriSeleccionada = data.data
+            txtArchivoGlobal?.text = "✅ Archivo seleccionado"
+            return
+        }
+
         if (resultCode == RESULT_OK) {
             val uri: Uri? = data?.data
             if (requestCode == 100 && uri != null) {
                 try {
                     contentResolver.openOutputStream(uri)?.use { out ->
-                        val csv = StringBuilder("Coche,Tipo,Litros,Km,Importe,Fecha,Lleno\n")
-                        for (g in listaGastos) csv.append("${g.coche},${g.tipo},${g.litros},${g.km},${g.importe},${g.fecha},${g.depositoLleno}\n")
+                        val csv = StringBuilder("Coche,Tipo,Litros,Km,Importe,Fecha,Lleno,Observaciones,Documento\n")
+                        for (g in listaGastos) csv.append("${g.coche},${g.tipo},${g.litros},${g.km},${g.importe},${g.fecha},${g.depositoLleno},\"${g.observaciones}\",${g.documentoUri ?: ""}\n")
                         out.write(csv.toString().toByteArray())
                     }
                     Toast.makeText(this, "¡Exportado!", Toast.LENGTH_SHORT).show()
@@ -657,7 +703,7 @@ class MainActivity : Activity() {
                         for (i in 1 until lines.size) {
                             val p = lines[i].split(",")
                             if (p.size >= 6) {
-                                listaGastos.add(Gasto(p[0], p[1], p[2], p[3], p[4], p[5], cardColors[colorIndex++ % cardColors.size], p.getOrNull(6)?.toBoolean() ?: false))
+                                listaGastos.add(Gasto(p[0], p[1], p[2], p[3], p[4], p[5], cardColors[colorIndex++ % cardColors.size], p.getOrNull(6)?.toBoolean() ?: false, p.getOrNull(7) ?: "", p.getOrNull(8) ?: null))
                                 if (!listaCoches.contains(p[0])) listaCoches.add(p[0])
                             }
                         }
@@ -678,5 +724,7 @@ data class Gasto(
     val importe: String,
     val fecha: String,
     val colorHex: String,
-    val depositoLleno: Boolean
+    val depositoLleno: Boolean,
+    val observaciones: String,
+    val documentoUri: String?
 )
