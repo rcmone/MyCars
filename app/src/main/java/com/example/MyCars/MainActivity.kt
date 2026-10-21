@@ -37,7 +37,6 @@ class MainActivity : Activity() {
     val listaCoches = mutableListOf("Coche Principal")
     val listaRecordatorios = mutableListOf<Recordatorio>()
     
-    // LISTA PARA GUARDAR LOS GASTOS SELECCIONADOS
     val seleccionados = mutableSetOf<Gasto>()
     
     var colorIndex = 0
@@ -149,11 +148,40 @@ class MainActivity : Activity() {
             params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT); layoutParams = params
         }
 
-        val iconCalendar = TextView(this).apply { text = "📅"; textSize = 24f; setPadding(0, 0, 30, 0); setOnClickListener { mostrarPantallaRecordatorios() } }
-        val iconLineChart = TextView(this).apply { text = "📉"; textSize = 24f; setPadding(0, 0, 30, 0); setOnClickListener { mostrarPantallaEvolucion() } }
-        val iconStats = TextView(this).apply { text = "📈"; textSize = 24f; setPadding(0, 0, 30, 0); setOnClickListener { mostrarPantallaEstadisticas() } }
-        val iconChart = TextView(this).apply { text = "📊"; textSize = 24f; setPadding(0, 0, 30, 0); setOnClickListener { mostrarPantallaResumen() } }
-        val iconMenu = TextView(this).apply { text = "⋮"; setTextColor(Color.WHITE); textSize = 28f; setPadding(0, 0, 0, 15); setOnClickListener { v -> showMenu(v) } }
+        // --- SOLUCIÓN: MÁS ESPACIO Y ÁREA DE PULSACIÓN MÁS GRANDE ---
+        val iconParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply {
+            setMargins(10, 0, 10, 0) // Margen de separación entre iconos
+        }
+
+        val iconCalendar = TextView(this).apply { 
+            text = "📅"; textSize = 24f; layoutParams = iconParams
+            setPadding(15, 15, 15, 15) // Aumenta el área donde se puede pulsar
+            setOnClickListener { mostrarPantallaRecordatorios() } 
+        }
+        val iconLineChart = TextView(this).apply { 
+            text = "📉"; textSize = 24f; layoutParams = iconParams
+            setPadding(15, 15, 15, 15)
+            setOnClickListener { mostrarPantallaEvolucion() } 
+        }
+        val iconStats = TextView(this).apply { 
+            text = "📈"; textSize = 24f; layoutParams = iconParams
+            setPadding(15, 15, 15, 15)
+            setOnClickListener { mostrarPantallaEstadisticas() } 
+        }
+        val iconChart = TextView(this).apply { 
+            text = "📊"; textSize = 24f; layoutParams = iconParams
+            setPadding(15, 15, 15, 15)
+            setOnClickListener { mostrarPantallaResumen() } 
+        }
+        val iconMenu = TextView(this).apply { 
+            text = "⋮"; setTextColor(Color.WHITE); textSize = 28f; layoutParams = iconParams
+            setPadding(15, 15, 15, 25) // Un poco más de padding abajo para alinear visualmente los puntos
+            setOnClickListener { v -> showMenu(v) } 
+        }
+        // -------------------------------------------------------------
 
         iconsLayout.addView(iconCalendar); iconsLayout.addView(iconLineChart); iconsLayout.addView(iconStats); iconsLayout.addView(iconChart); iconsLayout.addView(iconMenu)
         header.addView(iconsLayout); contentLayout.addView(header)
@@ -184,7 +212,6 @@ class MainActivity : Activity() {
 
                 val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
                 
-                // --- CHECKBOX PARA SELECCIONAR ---
                 val checkBox = CheckBox(this).apply {
                     isChecked = seleccionados.contains(g)
                     buttonTintList = ColorStateList.valueOf(Color.WHITE)
@@ -205,14 +232,14 @@ class MainActivity : Activity() {
                         AlertDialog.Builder(this@MainActivity).setTitle("Eliminar").setMessage("¿Borrar este gasto?")
                             .setPositiveButton("Sí") { _, _ -> 
                                 listaGastos.remove(g)
-                                seleccionados.remove(g) // Lo quitamos también de seleccionados
+                                seleccionados.remove(g)
                                 guardarDatos(); renderLista(searchBar.text.toString()) 
                             }
                             .setNegativeButton("No", null).show()
                     }
                 }
 
-                topRow.addView(checkBox) // Añadimos el checkbox al principio
+                topRow.addView(checkBox)
                 topRow.addView(txtTitulo); topRow.addView(txtImporte); topRow.addView(btnDelete)
 
                 val botRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 10, 0, 0) }
@@ -858,84 +885,59 @@ class MainActivity : Activity() {
             val uri: Uri? = data?.data
             
             if (requestCode == 700 && uri != null) {
-                // GENERAR EL PDF
                 try {
                     val pdfDocument = PdfDocument()
-                    val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // Tamaño A4
+                    val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
                     var page = pdfDocument.startPage(pageInfo)
                     var canvas = page.canvas
                     
                     val paint = Paint()
                     var y = 50f
                     
-                    // Título
-                    paint.textSize = 22f
-                    paint.isFakeBoldText = true
+                    paint.textSize = 22f; paint.isFakeBoldText = true
                     canvas.drawText("Reporte de Gastos - MyCars", 40f, y, paint)
                     y += 30f
+                    paint.textSize = 12f; paint.isFakeBoldText = false
                     
-                    paint.textSize = 12f
-                    paint.isFakeBoldText = false
-                    
-                    // Cabecera de la tabla
-                    canvas.drawText("Fecha", 40f, y, paint)
-                    canvas.drawText("Coche", 120f, y, paint)
-                    canvas.drawText("Tipo", 220f, y, paint)
-                    canvas.drawText("Importe", 350f, y, paint)
-                    canvas.drawText("Km", 450f, y, paint)
-                    y += 15f
-                    canvas.drawLine(40f, y, 550f, y, paint)
-                    y += 20f
+                    canvas.drawText("Fecha", 40f, y, paint); canvas.drawText("Coche", 120f, y, paint)
+                    canvas.drawText("Tipo", 220f, y, paint); canvas.drawText("Importe", 350f, y, paint); canvas.drawText("Km", 450f, y, paint)
+                    y += 15f; canvas.drawLine(40f, y, 550f, y, paint); y += 20f
                     
                     var totalImporte = 0.0
-                    
                     for (gasto in seleccionados) {
                         if (y > 800f) {
                             pdfDocument.finishPage(page)
                             page = pdfDocument.startPage(pageInfo)
-                            canvas = page.canvas
-                            y = 50f
+                            canvas = page.canvas; y = 50f
                         }
-                        
                         canvas.drawText(gasto.fecha, 40f, y, paint)
                         canvas.drawText(gasto.coche, 120f, y, paint)
                         canvas.drawText(gasto.tipo, 220f, y, paint)
                         canvas.drawText("${gasto.importe} €", 350f, y, paint)
                         canvas.drawText(gasto.km, 450f, y, paint)
                         y += 20f
-                        
                         if (gasto.observaciones.isNotEmpty()) {
-                            paint.color = Color.GRAY
-                            canvas.drawText("  Obs: ${gasto.observaciones}", 120f, y, paint)
-                            paint.color = Color.BLACK
-                            y += 20f
+                            paint.color = Color.GRAY; canvas.drawText("  Obs: ${gasto.observaciones}", 120f, y, paint)
+                            paint.color = Color.BLACK; y += 20f
                         }
-                        
                         totalImporte += gasto.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
-                        y += 5f // Espacio entre items
+                        y += 5f
                     }
                     
-                    // Total final
-                    y += 10f
-                    paint.isFakeBoldText = true
+                    y += 10f; paint.isFakeBoldText = true
                     canvas.drawLine(40f, y - 5f, 550f, y - 5f, paint)
                     canvas.drawText("TOTAL:", 350f, y + 10f, paint)
                     canvas.drawText("%.2f €".format(totalImporte), 450f, y + 10f, paint)
                     
                     pdfDocument.finishPage(page)
-                    
-                    contentResolver.openOutputStream(uri)?.use { out ->
-                        pdfDocument.writeTo(out)
-                    }
+                    contentResolver.openOutputStream(uri)?.use { out -> pdfDocument.writeTo(out) }
                     pdfDocument.close()
                     Toast.makeText(this, "¡PDF generado con éxito!", Toast.LENGTH_LONG).show()
-                } catch (e: Exception) {
-                    Toast.makeText(this, "Error al generar PDF: ${e.message}", Toast.LENGTH_LONG).show()
-                }
+                } catch (e: Exception) { Toast.makeText(this, "Error al generar PDF: ${e.message}", Toast.LENGTH_LONG).show() }
                 return
             }
 
-            if (requestCode == 100 && uri != null) { // CSV EXPORT
+            if (requestCode == 100 && uri != null) {
                 try {
                     contentResolver.openOutputStream(uri)?.use { out ->
                         val csv = StringBuilder("Coche,Tipo,Litros,Km,Importe,Fecha,Lleno,Observaciones,Documento\n")
@@ -944,7 +946,7 @@ class MainActivity : Activity() {
                     }
                     Toast.makeText(this, "¡Exportado CSV!", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) { Toast.makeText(this, "Error", Toast.LENGTH_SHORT).show() }
-            } else if (requestCode == 200 && uri != null) { // CSV IMPORT
+            } else if (requestCode == 200 && uri != null) {
                 try {
                     contentResolver.openInputStream(uri)?.use { input ->
                         val lines = input.bufferedReader().readLines(); listaGastos.clear()
@@ -959,7 +961,7 @@ class MainActivity : Activity() {
                     }
                     Toast.makeText(this, "¡Importado CSV!", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) { Toast.makeText(this, "Error al importar", Toast.LENGTH_SHORT).show() }
-            } else if (requestCode == 500 && uri != null) { // JSON EXPORT
+            } else if (requestCode == 500 && uri != null) {
                 try {
                     val backupObj = JSONObject()
                     val gastosArray = JSONArray()
@@ -981,7 +983,7 @@ class MainActivity : Activity() {
                     contentResolver.openOutputStream(uri)?.use { out -> out.write(backupObj.toString().toByteArray()) }
                     Toast.makeText(this, "¡Copia de seguridad guardada!", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) { Toast.makeText(this, "Error al guardar copia", Toast.LENGTH_SHORT).show() }
-            } else if (requestCode == 600 && uri != null) { // JSON IMPORT
+            } else if (requestCode == 600 && uri != null) {
                 try {
                     contentResolver.openInputStream(uri)?.use { input ->
                         val jsonString = input.bufferedReader().readText()
