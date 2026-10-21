@@ -6,8 +6,11 @@ import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PointF
@@ -148,17 +151,14 @@ class MainActivity : Activity() {
             params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT); layoutParams = params
         }
 
-        // --- SOLUCIÓN: MÁS ESPACIO Y ÁREA DE PULSACIÓN MÁS GRANDE ---
         val iconParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT,
             ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply {
-            setMargins(10, 0, 10, 0) // Margen de separación entre iconos
-        }
+        ).apply { setMargins(10, 0, 10, 0) }
 
         val iconCalendar = TextView(this).apply { 
             text = "📅"; textSize = 24f; layoutParams = iconParams
-            setPadding(15, 15, 15, 15) // Aumenta el área donde se puede pulsar
+            setPadding(15, 15, 15, 15)
             setOnClickListener { mostrarPantallaRecordatorios() } 
         }
         val iconLineChart = TextView(this).apply { 
@@ -178,10 +178,9 @@ class MainActivity : Activity() {
         }
         val iconMenu = TextView(this).apply { 
             text = "⋮"; setTextColor(Color.WHITE); textSize = 28f; layoutParams = iconParams
-            setPadding(15, 15, 15, 25) // Un poco más de padding abajo para alinear visualmente los puntos
+            setPadding(15, 15, 15, 25) 
             setOnClickListener { v -> showMenu(v) } 
         }
-        // -------------------------------------------------------------
 
         iconsLayout.addView(iconCalendar); iconsLayout.addView(iconLineChart); iconsLayout.addView(iconStats); iconsLayout.addView(iconChart); iconsLayout.addView(iconMenu)
         header.addView(iconsLayout); contentLayout.addView(header)
@@ -317,7 +316,7 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // GENERAR PDF
+    // GENERAR PDF PROFESIONAL CON IMÁGENES
     // ==========================================
     fun generarPDF() {
         if (seleccionados.isEmpty()) {
@@ -885,54 +884,132 @@ class MainActivity : Activity() {
             val uri: Uri? = data?.data
             
             if (requestCode == 700 && uri != null) {
+                // GENERAR EL PDF PROFESIONAL
                 try {
                     val pdfDocument = PdfDocument()
                     val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
                     var page = pdfDocument.startPage(pageInfo)
                     var canvas = page.canvas
                     
-                    val paint = Paint()
-                    var y = 50f
+                    val textPaint = Paint().apply { color = Color.BLACK }
+                    val linePaint = Paint().apply { color = Color.LTGRAY; strokeWidth = 1f }
                     
-                    paint.textSize = 22f; paint.isFakeBoldText = true
-                    canvas.drawText("Reporte de Gastos - MyCars", 40f, y, paint)
+                    var y = 60f
+                    // Título
+                    textPaint.textSize = 24f; textPaint.isFakeBoldText = true
+                    canvas.drawText("Reporte de Gastos - MyCars", 40f, y, textPaint)
+                    
+                    // Icono de la App (Esquina superior derecha)
+                    try {
+                        val icon = BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
+                        val scaledIcon = Bitmap.createScaledBitmap(icon, 60, 60, true)
+                        canvas.drawBitmap(scaledIcon, 495f, 20f, Paint())
+                    } catch (e: Exception) {}
+
+                    y += 20f
+                    linePaint.color = Color.parseColor("#FF9800") // Línea naranja
+                    linePaint.strokeWidth = 3f
+                    canvas.drawLine(40f, y, 555f, y, linePaint)
                     y += 30f
-                    paint.textSize = 12f; paint.isFakeBoldText = false
                     
-                    canvas.drawText("Fecha", 40f, y, paint); canvas.drawText("Coche", 120f, y, paint)
-                    canvas.drawText("Tipo", 220f, y, paint); canvas.drawText("Importe", 350f, y, paint); canvas.drawText("Km", 450f, y, paint)
-                    y += 15f; canvas.drawLine(40f, y, 550f, y, paint); y += 20f
+                    // Cabecera Tabla
+                    textPaint.textSize = 12f; textPaint.isFakeBoldText = true
+                    canvas.drawText("Fecha", 40f, y, textPaint)
+                    canvas.drawText("Coche", 110f, y, textPaint)
+                    canvas.drawText("Tipo", 210f, y, textPaint)
+                    canvas.drawText("Importe", 320f, y, textPaint)
+                    canvas.drawText("Km", 410f, y, textPaint)
+                    canvas.drawText("Obs.", 480f, y, textPaint)
+                    y += 10f
+                    linePaint.color = Color.BLACK; linePaint.strokeWidth = 1f
+                    canvas.drawLine(40f, y, 555f, y, linePaint)
+                    y += 20f
                     
+                    textPaint.isFakeBoldText = false
                     var totalImporte = 0.0
+                    var isAlternate = false
+                    
+                    // Filas Tabla
                     for (gasto in seleccionados) {
-                        if (y > 800f) {
+                        if (y > 780f) {
                             pdfDocument.finishPage(page)
                             page = pdfDocument.startPage(pageInfo)
-                            canvas = page.canvas; y = 50f
+                            canvas = page.canvas
+                            y = 60f
                         }
-                        canvas.drawText(gasto.fecha, 40f, y, paint)
-                        canvas.drawText(gasto.coche, 120f, y, paint)
-                        canvas.drawText(gasto.tipo, 220f, y, paint)
-                        canvas.drawText("${gasto.importe} €", 350f, y, paint)
-                        canvas.drawText(gasto.km, 450f, y, paint)
+                        
+                        if (isAlternate) {
+                            val bgPaint = Paint().apply { color = Color.parseColor("#F5F5F5") }
+                            canvas.drawRect(30f, y - 15f, 565f, y + 5f, bgPaint)
+                        }
+                        
+                        canvas.drawText(gasto.fecha, 40f, y, textPaint)
+                        val txtCoche = if(gasto.coche.length > 15) gasto.coche.take(15)+"..." else gasto.coche
+                        canvas.drawText(txtCoche, 110f, y, textPaint)
+                        canvas.drawText(gasto.tipo, 210f, y, textPaint)
+                        canvas.drawText("${gasto.importe} €", 320f, y, textPaint)
+                        canvas.drawText(gasto.km, 410f, y, textPaint)
+                        val txtObs = if(gasto.observaciones.length > 12) gasto.observaciones.take(12)+"..." else gasto.observaciones
+                        canvas.drawText(txtObs, 480f, y, textPaint)
+                        
                         y += 20f
-                        if (gasto.observaciones.isNotEmpty()) {
-                            paint.color = Color.GRAY; canvas.drawText("  Obs: ${gasto.observaciones}", 120f, y, paint)
-                            paint.color = Color.BLACK; y += 20f
-                        }
                         totalImporte += gasto.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
-                        y += 5f
+                        isAlternate = !isAlternate
                     }
                     
-                    y += 10f; paint.isFakeBoldText = true
-                    canvas.drawLine(40f, y - 5f, 550f, y - 5f, paint)
-                    canvas.drawText("TOTAL:", 350f, y + 10f, paint)
-                    canvas.drawText("%.2f €".format(totalImporte), 450f, y + 10f, paint)
+                    // Total
+                    y += 10f
+                    linePaint.color = Color.BLACK
+                    canvas.drawLine(40f, y, 555f, y, linePaint)
+                    y += 20f
+                    textPaint.isFakeBoldText = true
+                    canvas.drawText("TOTAL:", 320f, y, textPaint)
+                    canvas.drawText("%.2f €".format(totalImporte), 410f, y, textPaint)
                     
                     pdfDocument.finishPage(page)
+
+                    // PÁGINAS DE ADJUNTOS (FOTOS)
+                    for (gasto in seleccionados) {
+                        if (gasto.documentoUri != null) {
+                            try {
+                                val inputStream = contentResolver.openInputStream(Uri.parse(gasto.documentoUri))
+                                val bitmap = BitmapFactory.decodeStream(inputStream)
+                                inputStream?.close()
+                                
+                                if (bitmap != null) {
+                                    val newPageInfo = PdfDocument.PageInfo.Builder(595, 842, pdfDocument.pages.size + 1).create()
+                                    page = pdfDocument.startPage(newPageInfo)
+                                    canvas = page.canvas
+                                    
+                                    val headerPaint = Paint().apply { 
+                                        textSize = 16f; color = Color.BLACK; isFakeBoldText = true 
+                                    }
+                                    canvas.drawText("Factura: ${gasto.coche} - ${gasto.fecha}", 40f, 50f, headerPaint)
+                                    
+                                    // Escalar imagen
+                                    val maxWidth = 515f
+                                    val maxHeight = 700f
+                                    val ratio = Math.min(maxWidth / bitmap.width, maxHeight / bitmap.height)
+                                    val matrix = Matrix()
+                                    matrix.postScale(ratio, ratio)
+                                    val scaledBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                                    
+                                    // Centrar imagen
+                                    val left = (595 - scaledBitmap.width) / 2
+                                    val top = 80f
+                                    canvas.drawBitmap(scaledBitmap, left.toFloat(), top, Paint())
+                                    
+                                    pdfDocument.finishPage(page)
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace() // Ignorar si el archivo no es una imagen válida
+                            }
+                        }
+                    }
+                    
                     contentResolver.openOutputStream(uri)?.use { out -> pdfDocument.writeTo(out) }
                     pdfDocument.close()
-                    Toast.makeText(this, "¡PDF generado con éxito!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(this, "¡PDF profesional generado!", Toast.LENGTH_LONG).show()
                 } catch (e: Exception) { Toast.makeText(this, "Error al generar PDF: ${e.message}", Toast.LENGTH_LONG).show() }
                 return
             }
