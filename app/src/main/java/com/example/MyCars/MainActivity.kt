@@ -2,6 +2,7 @@ package com.example.MyCars // ⚠️ Asegúrate de que coincide con tu paquete
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.Canvas
@@ -32,6 +33,7 @@ class MainActivity : Activity() {
 
     val listaGastos = mutableListOf<Gasto>()
     val listaCoches = mutableListOf("Coche Principal")
+    val listaRecordatorios = mutableListOf<Recordatorio>()
     var colorIndex = 0
 
     val bgColor = Color.parseColor("#121212")
@@ -42,7 +44,7 @@ class MainActivity : Activity() {
     lateinit var contentLayout: LinearLayout
 
     var uriSeleccionada: Uri? = null
-    var fotoUri: Uri? = null // Para guardar la foto temporal de la cámara
+    var fotoUri: Uri? = null
     var txtArchivoGlobal: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -89,6 +91,18 @@ class MainActivity : Activity() {
             openFileOutput("coches.json", MODE_PRIVATE).use { stream ->
                 stream.write(cochesArray.toString().toByteArray())
             }
+
+            val recArray = JSONArray()
+            for (r in listaRecordatorios) {
+                val obj = JSONObject()
+                obj.put("titulo", r.titulo)
+                obj.put("fecha", r.fecha)
+                obj.put("coche", r.coche)
+                recArray.put(obj)
+            }
+            openFileOutput("recordatorios.json", MODE_PRIVATE).use { stream ->
+                stream.write(recArray.toString().toByteArray())
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -102,10 +116,7 @@ class MainActivity : Activity() {
             for (i in 0 until jsonArray.length()) {
                 listaCoches.add(jsonArray.getString(i))
             }
-        } catch (e: java.io.FileNotFoundException) {
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: java.io.FileNotFoundException) {} catch (e: Exception) { e.printStackTrace() }
 
         try {
             val jsonString = openFileInput("gastos.json").bufferedReader().use { it.readText() }
@@ -115,24 +126,26 @@ class MainActivity : Activity() {
                 val obj = jsonArray.getJSONObject(i)
                 listaGastos.add(
                     Gasto(
-                        coche = obj.getString("coche"),
-                        tipo = obj.getString("tipo"),
-                        litros = obj.optString("litros", ""),
-                        km = obj.optString("km", ""),
-                        importe = obj.getString("importe"),
-                        fecha = obj.getString("fecha"),
-                        colorHex = obj.getString("colorHex"),
-                        depositoLleno = obj.optBoolean("depositoLleno", false),
-                        observaciones = obj.optString("observaciones", ""),
-                        documentoUri = obj.optString("documentoUri").takeIf { it.isNotEmpty() }
+                        coche = obj.getString("coche"), tipo = obj.getString("tipo"),
+                        litros = obj.optString("litros", ""), km = obj.optString("km", ""),
+                        importe = obj.getString("importe"), fecha = obj.getString("fecha"),
+                        colorHex = obj.getString("colorHex"), depositoLleno = obj.optBoolean("depositoLleno", false),
+                        observaciones = obj.optString("observaciones", ""), documentoUri = obj.optString("documentoUri").takeIf { it.isNotEmpty() }
                     )
                 )
             }
             colorIndex = listaGastos.size
-        } catch (e: java.io.FileNotFoundException) {
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        } catch (e: java.io.FileNotFoundException) {} catch (e: Exception) { e.printStackTrace() }
+
+        try {
+            val jsonString = openFileInput("recordatorios.json").bufferedReader().use { it.readText() }
+            val jsonArray = JSONArray(jsonString)
+            listaRecordatorios.clear()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                listaRecordatorios.add(Recordatorio(obj.getString("titulo"), obj.getString("fecha"), obj.getString("coche")))
+            }
+        } catch (e: java.io.FileNotFoundException) {} catch (e: Exception) { e.printStackTrace() }
     }
 
     // ==========================================
@@ -165,6 +178,14 @@ class MainActivity : Activity() {
             layoutParams = params
         }
 
+        // ICONO DE RECORDATORIOS (CALENDARIO)
+        val iconCalendar = TextView(this).apply {
+            text = "📅"
+            textSize = 24f
+            setPadding(0, 0, 30, 0)
+            setOnClickListener { mostrarPantallaRecordatorios() }
+        }
+
         val iconLineChart = TextView(this).apply {
             text = "📉"
             textSize = 24f
@@ -194,6 +215,7 @@ class MainActivity : Activity() {
             setOnClickListener { v -> showMenu(v) }
         }
 
+        iconsLayout.addView(iconCalendar)
         iconsLayout.addView(iconLineChart)
         iconsLayout.addView(iconStats)
         iconsLayout.addView(iconChart)
@@ -207,10 +229,7 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             textSize = 16f
             setPadding(40, 25, 40, 25)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#222222"))
-                cornerRadius = 40f
-            }
+            background = GradientDrawable().apply { setColor(Color.parseColor("#222222")); cornerRadius = 40f }
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
             lp.setMargins(50, 0, 50, 30)
             layoutParams = lp
@@ -230,51 +249,33 @@ class MainActivity : Activity() {
                 val card = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(40, 40, 40, 40)
-                    background = GradientDrawable().apply {
-                        setColor(Color.parseColor(g.colorHex))
-                        cornerRadius = 40f
-                    }
+                    background = GradientDrawable().apply { setColor(Color.parseColor(g.colorHex)); cornerRadius = 40f }
                     val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-                    lp.setMargins(0, 0, 0, 30)
-                    layoutParams = lp
+                    lp.setMargins(0, 0, 0, 30); layoutParams = lp
                 }
 
                 val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
                 val txtTitulo = TextView(this).apply {
                     text = "${g.coche} - ${g.tipo}"
-                    setTextColor(Color.WHITE)
-                    textSize = 18f
-                    setTypeface(null, Typeface.BOLD)
+                    setTextColor(Color.WHITE); textSize = 18f; setTypeface(null, Typeface.BOLD)
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 }
                 val txtImporte = TextView(this).apply {
                     text = "${g.importe} €"
-                    setTextColor(Color.WHITE)
-                    textSize = 20f
-                    setTypeface(null, Typeface.BOLD)
-                    setPadding(0, 0, 20, 0)
+                    setTextColor(Color.WHITE); textSize = 20f; setTypeface(null, Typeface.BOLD); setPadding(0, 0, 20, 0)
                 }
                 
                 val btnDelete = TextView(this).apply {
-                    text = "🗑️"
-                    textSize = 20f
+                    text = "🗑️"; textSize = 20f
                     setOnClickListener {
-                        AlertDialog.Builder(this@MainActivity)
-                            .setTitle("Eliminar gasto")
-                            .setMessage("¿Estás seguro de que quieres borrar este gasto?")
+                        AlertDialog.Builder(this@MainActivity).setTitle("Eliminar").setMessage("¿Borrar este gasto?")
                             .setPositiveButton("Sí") { _, _ ->
-                                listaGastos.remove(g)
-                                guardarDatos()
-                                renderLista(searchBar.text.toString())
-                            }
-                            .setNegativeButton("No", null)
-                            .show()
+                                listaGastos.remove(g); guardarDatos(); renderLista(searchBar.text.toString())
+                            }.setNegativeButton("No", null).show()
                     }
                 }
 
-                topRow.addView(txtTitulo)
-                topRow.addView(txtImporte)
-                topRow.addView(btnDelete)
+                topRow.addView(txtTitulo); topRow.addView(txtImporte); topRow.addView(btnDelete)
 
                 val botRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 10, 0, 0) }
                 val txtSubtitulo = TextView(this).apply {
@@ -282,51 +283,31 @@ class MainActivity : Activity() {
                     if (g.litros.isNotEmpty()) sub += "${g.litros} L/kWh  "
                     if (g.km.isNotEmpty()) sub += "${g.km} Km"
                     if (g.depositoLleno) sub += " (Lleno)"
-                    text = sub
-                    setTextColor(Color.WHITE)
-                    textSize = 14f
+                    text = sub; setTextColor(Color.WHITE); textSize = 14f
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 }
-                val txtFecha = TextView(this).apply {
-                    text = g.fecha
-                    setTextColor(Color.WHITE)
-                    textSize = 14f
-                }
-                botRow.addView(txtSubtitulo)
-                botRow.addView(txtFecha)
+                val txtFecha = TextView(this).apply { text = g.fecha; setTextColor(Color.WHITE); textSize = 14f }
+                botRow.addView(txtSubtitulo); botRow.addView(txtFecha)
 
-                card.addView(topRow)
-                card.addView(botRow)
+                card.addView(topRow); card.addView(botRow)
 
                 if (g.observaciones.isNotEmpty()) {
-                    val txtObs = TextView(this).apply {
-                        text = "📝 ${g.observaciones}"
-                        setTextColor(Color.WHITE)
-                        textSize = 14f
-                        setPadding(0, 10, 0, 0)
-                    }
+                    val txtObs = TextView(this).apply { text = "📝 ${g.observaciones}"; setTextColor(Color.WHITE); textSize = 14f; setPadding(0, 10, 0, 0) }
                     card.addView(txtObs)
                 }
 
                 if (g.documentoUri != null) {
                     val txtDoc = TextView(this).apply {
-                        text = "📎 Ver documento adjunto"
-                        setTextColor(Color.parseColor("#FFD54F"))
-                        textSize = 14f
-                        setPadding(0, 10, 0, 0)
+                        text = "📎 Ver documento adjunto"; setTextColor(Color.parseColor("#FFD54F")); textSize = 14f; setPadding(0, 10, 0, 0)
                         setOnClickListener {
                             try {
                                 val intent = Intent(Intent.ACTION_VIEW, Uri.parse(g.documentoUri))
-                                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                startActivity(intent)
-                            } catch (e: Exception) {
-                                Toast.makeText(this@MainActivity, "No se puede abrir el archivo", Toast.LENGTH_SHORT).show()
-                            }
+                                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION); startActivity(intent)
+                            } catch (e: Exception) { Toast.makeText(this@MainActivity, "No se puede abrir", Toast.LENGTH_SHORT).show() }
                         }
                     }
                     card.addView(txtDoc)
                 }
-
                 listLayout.addView(card)
             }
         }
@@ -340,19 +321,11 @@ class MainActivity : Activity() {
         })
 
         val fab = Button(this).apply {
-            text = "＋ Añadir"
-            setTextColor(Color.BLACK)
-            textSize = 16f
-            setTypeface(null, Typeface.BOLD)
-            background = GradientDrawable().apply {
-                setColor(orangeColor)
-                cornerRadius = 50f
-            }
+            text = "＋ Añadir"; setTextColor(Color.BLACK); textSize = 16f; setTypeface(null, Typeface.BOLD)
+            background = GradientDrawable().apply { setColor(orangeColor); cornerRadius = 50f }
             val params = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
-            params.gravity = Gravity.BOTTOM or Gravity.END
-            params.setMargins(0, 0, 50, 50)
-            layoutParams = params
-            setOnClickListener { mostrarFormularioNuevoGasto() }
+            params.gravity = Gravity.BOTTOM or Gravity.END; params.setMargins(0, 0, 50, 50)
+            layoutParams = params; setOnClickListener { mostrarFormularioNuevoGasto() }
         }
         rootLayout.addView(fab)
     }
@@ -361,11 +334,15 @@ class MainActivity : Activity() {
         val popup = PopupMenu(this, view)
         popup.menu.add("Exportar a CSV")
         popup.menu.add("Importar desde CSV")
+        popup.menu.add("☁️ Copia de Seguridad (JSON)")
+        popup.menu.add("☁️ Restaurar Copia (JSON)")
         
         popup.setOnMenuItemClickListener { item ->
             when (item.title) {
                 "Exportar a CSV" -> { exportarCSV(); true }
                 "Importar desde CSV" -> { importarCSV(); true }
+                "☁️ Copia de Seguridad (JSON)" -> { exportarJSON(); true }
+                "☁️ Restaurar Copia (JSON)" -> { importarJSON(); true }
                 else -> false
             }
         }
@@ -373,65 +350,42 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // FORMULARIO NUEVO GASTO (CON CÁMARA)
+    // FORMULARIO NUEVO GASTO
     // ==========================================
     fun mostrarFormularioNuevoGasto() {
-        contentLayout.removeAllViews()
-        rootLayout.removeAllViews()
+        contentLayout.removeAllViews(); rootLayout.removeAllViews()
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         uriSeleccionada = null
 
-        val scroll = ScrollView(this)
-        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 80, 50, 50) }
-        scroll.addView(layout)
-        contentLayout.addView(scroll)
+        val scroll = ScrollView(this); val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 80, 50, 50) }
+        scroll.addView(layout); contentLayout.addView(scroll)
 
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val btnBack = TextView(this).apply {
-            text = "← Volver"
-            setTextColor(orangeColor)
-            textSize = 18f
-            setOnClickListener { mostrarPantallaPrincipal() }
-        }
-        val title = TextView(this).apply {
-            text = "  Nuevo Gasto"
-            setTextColor(Color.WHITE)
-            textSize = 24f
-            setTypeface(null, Typeface.BOLD)
-        }
+        val btnBack = TextView(this).apply { text = "← Volver"; setTextColor(orangeColor); textSize = 18f; setOnClickListener { mostrarPantallaPrincipal() } }
+        val title = TextView(this).apply { text = "  Nuevo Gasto"; setTextColor(Color.WHITE); textSize = 24f; setTypeface(null, Typeface.BOLD) }
         header.addView(btnBack); header.addView(title)
         layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
 
         val spinnerCoche = Spinner(this)
-        val adapterCoche = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listaCoches)
-        spinnerCoche.adapter = adapterCoche
+        spinnerCoche.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listaCoches)
         layout.addView(spinnerCoche)
 
         val btnEditCoches = Button(this).apply {
-            text = "✏️ Editar nombres de coches"
-            setBackgroundColor(Color.TRANSPARENT)
-            setTextColor(orangeColor)
+            text = "✏️ Editar nombres de coches"; setBackgroundColor(Color.TRANSPARENT); setTextColor(orangeColor)
             setOnClickListener {
                 val dialogLayout = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 30, 50, 30) }
-                val scrollDialog = ScrollView(this@MainActivity); scrollDialog.addView(dialogLayout)
                 val editTexts = mutableListOf<EditText>()
-
                 fun agregarCampo(nombre: String) {
-                    val et = EditText(this@MainActivity).apply {
-                        setText(nombre); setTextColor(Color.WHITE); setHintTextColor(Color.GRAY); hint = "Nombre del coche"
-                    }
+                    val et = EditText(this@MainActivity).apply { setText(nombre); setTextColor(Color.WHITE); hint = "Nombre" }
                     editTexts.add(et); dialogLayout.addView(et)
                 }
                 listaCoches.forEach { agregarCampo(it) }
-                dialogLayout.addView(Button(this@MainActivity).apply { text = "+ Añadir otro coche"; setOnClickListener { agregarCampo("") } })
+                dialogLayout.addView(Button(this@MainActivity).apply { text = "+ Añadir otro"; setOnClickListener { agregarCampo("") } })
 
-                AlertDialog.Builder(this@MainActivity).setTitle("Configurar nombres").setView(scrollDialog)
+                AlertDialog.Builder(this@MainActivity).setTitle("Coches").setView(ScrollView(this@MainActivity).apply { addView(dialogLayout) })
                     .setPositiveButton("Guardar") { _, _ ->
                         listaCoches.clear()
-                        for (et in editTexts) {
-                            val nombre = et.text.toString().trim()
-                            if (nombre.isNotEmpty() && !listaCoches.contains(nombre)) listaCoches.add(nombre)
-                        }
+                        for (et in editTexts) { val n = et.text.toString().trim(); if (n.isNotEmpty() && !listaCoches.contains(n)) listaCoches.add(n) }
                         if (listaCoches.isEmpty()) listaCoches.add("Coche Principal")
                         spinnerCoche.adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listaCoches)
                         guardarDatos()
@@ -442,8 +396,7 @@ class MainActivity : Activity() {
 
         val spinnerGasto = Spinner(this)
         val tipos = arrayOf("Combustible", "Mantenimiento", "Otros")
-        val adapterGasto = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, tipos)
-        spinnerGasto.adapter = adapterGasto
+        spinnerGasto.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, tipos)
         layout.addView(spinnerGasto)
 
         val inputImporte = EditText(this).apply { hint = "Importe total (€)"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setTextColor(Color.WHITE) }
@@ -451,170 +404,166 @@ class MainActivity : Activity() {
 
         val inputLitros = EditText(this).apply { hint = "Cantidad (Litros o kWh)"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setTextColor(Color.WHITE) }
         val inputKm = EditText(this).apply { hint = "Kilometraje actual (Km)"; inputType = InputType.TYPE_CLASS_NUMBER; setTextColor(Color.WHITE) }
-        val checkLleno = CheckBox(this).apply {
-            text = "Depósito lleno"
-            setTextColor(Color.WHITE)
-            buttonTintList = android.content.res.ColorStateList.valueOf(orangeColor)
-        }
+        val checkLleno = CheckBox(this).apply { text = "Depósito lleno"; setTextColor(Color.WHITE); buttonTintList = android.content.res.ColorStateList.valueOf(orangeColor) }
         
-        val txtPrecioLitro = TextView(this).apply {
-            setTextColor(orangeColor)
-            textSize = 16f
-            setTypeface(null, Typeface.BOLD)
-            setPadding(0, 10, 0, 20)
-        }
+        val txtPrecioLitro = TextView(this).apply { setTextColor(orangeColor); textSize = 16f; setTypeface(null, Typeface.BOLD); setPadding(0, 10, 0, 20) }
 
-        layout.addView(inputLitros)
-        layout.addView(checkLleno)
-        layout.addView(inputKm)
-        layout.addView(txtPrecioLitro)
+        layout.addView(inputLitros); layout.addView(checkLleno); layout.addView(inputKm); layout.addView(txtPrecioLitro)
 
         val layoutExtras = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
+        val inputObservaciones = EditText(this).apply { hint = "Observaciones"; setTextColor(Color.WHITE) }
         
-        val inputObservaciones = EditText(this).apply { hint = "Observaciones (ej. Cambio de aceite)"; setTextColor(Color.WHITE) }
-        
-        // BOTÓN DE CÁMARA
         val btnCamara = Button(this).apply {
-            text = "📷 Hacer foto a la factura"
-            setBackgroundColor(Color.parseColor("#333333"))
-            setTextColor(Color.WHITE)
+            text = "📷 Hacer foto a la factura"; setBackgroundColor(Color.parseColor("#333333")); setTextColor(Color.WHITE)
             setOnClickListener {
                 val ficheroFoto = File(getExternalFilesDir(null), "factura_${System.currentTimeMillis()}.jpg")
                 try {
-                    fotoUri = androidx.core.content.FileProvider.getUriForFile(
-                        this@MainActivity,
-                        "com.example.MyCars.fileprovider", // Debe coincidir con el Manifest
-                        ficheroFoto
-                    )
-                    val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-                    intent.putExtra(MediaStore.EXTRA_OUTPUT, fotoUri)
+                    fotoUri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "com.example.MyCars.fileprovider", ficheroFoto)
+                    val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply { putExtra(MediaStore.EXTRA_OUTPUT, fotoUri) }
                     startActivityForResult(intent, 400)
-                } catch (e: Exception) {
-                    Toast.makeText(this@MainActivity, "Error al abrir la cámara", Toast.LENGTH_SHORT).show()
-                }
+                } catch (e: Exception) { Toast.makeText(this@MainActivity, "Error cámara", Toast.LENGTH_SHORT).show() }
             }
         }
 
-        // BOTÓN DE ADJUNTAR ARCHIVO (El que ya teníamos)
         val btnAdjuntar = Button(this).apply {
-            text = "📎 O elegir de la galería/archivos"
-            setBackgroundColor(Color.parseColor("#333333"))
-            setTextColor(Color.WHITE)
+            text = "📎 Elegir de la galería"; setBackgroundColor(Color.parseColor("#333333")); setTextColor(Color.WHITE)
             setOnClickListener {
                 val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
-                    addCategory(Intent.CATEGORY_OPENABLE)
-                    type = "*/*"
+                    addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
                 }
                 startActivityForResult(intent, 300)
             }
         }
         
-        val txtArchivoSeleccionado = TextView(this).apply { 
-            text = "Ningún archivo seleccionado"
-            setTextColor(Color.LTGRAY)
-            setPadding(0, 10, 0, 10)
-        }
+        val txtArchivoSeleccionado = TextView(this).apply { text = "Ningún archivo seleccionado"; setTextColor(Color.LTGRAY); setPadding(0, 10, 0, 10) }
 
-        layoutExtras.addView(inputObservaciones)
-        layoutExtras.addView(btnCamara)
-        layoutExtras.addView(btnAdjuntar)
-        layoutExtras.addView(txtArchivoSeleccionado)
+        layoutExtras.addView(inputObservaciones); layoutExtras.addView(btnCamara); layoutExtras.addView(btnAdjuntar); layoutExtras.addView(txtArchivoSeleccionado)
         layout.addView(layoutExtras)
 
         this.txtArchivoGlobal = txtArchivoSeleccionado
 
         val watcherCalculadora = object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
-                val impStr = inputImporte.text.toString().replace(",", ".")
-                val litStr = inputLitros.text.toString().replace(",", ".")
-                val imp = impStr.toDoubleOrNull() ?: 0.0
-                val lit = litStr.toDoubleOrNull() ?: 0.0
-                
-                if (lit > 0.0 && imp > 0.0) {
-                    txtPrecioLitro.text = "👉 Precio: %.3f €/L".format(imp / lit)
-                } else {
-                    txtPrecioLitro.text = ""
-                }
+                val imp = inputImporte.text.toString().replace(",", ".").toDoubleOrNull() ?: 0.0
+                val lit = inputLitros.text.toString().replace(",", ".").toDoubleOrNull() ?: 0.0
+                if (lit > 0.0 && imp > 0.0) txtPrecioLitro.text = "👉 Precio: %.3f €/L".format(imp / lit) else txtPrecioLitro.text = ""
             }
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
         }
-        inputImporte.addTextChangedListener(watcherCalculadora)
-        inputLitros.addTextChangedListener(watcherCalculadora)
+        inputImporte.addTextChangedListener(watcherCalculadora); inputLitros.addTextChangedListener(watcherCalculadora)
 
         spinnerGasto.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 if (tipos[position] == "Combustible") {
-                    inputLitros.visibility = View.VISIBLE
-                    checkLleno.visibility = View.VISIBLE
-                    inputKm.visibility = View.VISIBLE
-                    txtPrecioLitro.visibility = View.VISIBLE
-                    layoutExtras.visibility = View.GONE
+                    inputLitros.visibility = View.VISIBLE; checkLleno.visibility = View.VISIBLE
+                    inputKm.visibility = View.VISIBLE; txtPrecioLitro.visibility = View.VISIBLE; layoutExtras.visibility = View.GONE
                 } else {
-                    inputLitros.visibility = View.GONE
-                    checkLleno.visibility = View.GONE
-                    inputKm.visibility = View.VISIBLE
-                    txtPrecioLitro.visibility = View.GONE
-                    layoutExtras.visibility = View.VISIBLE
+                    inputLitros.visibility = View.GONE; checkLleno.visibility = View.GONE
+                    inputKm.visibility = View.VISIBLE; txtPrecioLitro.visibility = View.GONE; layoutExtras.visibility = View.VISIBLE
                 }
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
         val btnGuardar = Button(this).apply {
-            text = "Guardar Gasto"
-            setBackgroundColor(orangeColor)
-            setTextColor(Color.BLACK)
-            setTypeface(null, Typeface.BOLD)
-            setPadding(0, 30, 0, 30)
+            text = "Guardar Gasto"; setBackgroundColor(orangeColor); setTextColor(Color.BLACK); setTypeface(null, Typeface.BOLD); setPadding(0, 30, 0, 30)
             setOnClickListener {
                 val coche = spinnerCoche.selectedItem.toString()
                 val importe = inputImporte.text.toString().replace(",", ".")
-                val litros = inputLitros.text.toString().replace(",", ".")
-                
                 if (importe.isNotEmpty()) {
                     val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
-                    listaGastos.add(Gasto(
-                        coche = coche,
-                        tipo = spinnerGasto.selectedItem.toString(),
-                        litros = litros,
-                        km = inputKm.text.toString(),
-                        importe = importe,
-                        fecha = fecha,
-                        colorHex = cardColors[colorIndex % cardColors.size],
-                        depositoLleno = checkLleno.isChecked,
-                        observaciones = inputObservaciones.text.toString(),
-                        documentoUri = uriSeleccionada?.toString()
-                    ))
-                    colorIndex++
-                    guardarDatos()
-                    Toast.makeText(this@MainActivity, "Guardado", Toast.LENGTH_SHORT).show()
-                    mostrarPantallaPrincipal()
-                } else {
-                    Toast.makeText(this@MainActivity, "El importe es obligatorio", Toast.LENGTH_SHORT).show()
-                }
+                    listaGastos.add(Gasto(coche, spinnerGasto.selectedItem.toString(), inputLitros.text.toString().replace(",", "."), inputKm.text.toString(), importe, fecha, cardColors[colorIndex % cardColors.size], checkLleno.isChecked, inputObservaciones.text.toString(), uriSeleccionada?.toString()))
+                    colorIndex++; guardarDatos(); Toast.makeText(this@MainActivity, "Guardado", Toast.LENGTH_SHORT).show(); mostrarPantallaPrincipal()
+                } else Toast.makeText(this@MainActivity, "El importe es obligatorio", Toast.LENGTH_SHORT).show()
             }
         }
         layout.addView(btnGuardar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 40, 0, 0) })
     }
 
     // ==========================================
+    // PANTALLA RECORDATORIOS (ITV, SEGURO)
+    // ==========================================
+    fun mostrarPantallaRecordatorios() {
+        contentLayout.removeAllViews(); rootLayout.removeAllViews()
+        rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        val scroll = ScrollView(this)
+        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 80, 50, 50) }
+        scroll.addView(layout); contentLayout.addView(scroll)
+
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val btnBack = TextView(this).apply { text = "← Volver"; setTextColor(orangeColor); textSize = 18f; setOnClickListener { mostrarPantallaPrincipal() } }
+        val title = TextView(this).apply { text = "  Recordatorios"; setTextColor(Color.WHITE); textSize = 24f; setTypeface(null, Typeface.BOLD) }
+        header.addView(btnBack); header.addView(title)
+        layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
+
+        val btnAddRec = Button(this).apply {
+            text = "＋ Añadir Recordatorio (ITV, Seguro...)"
+            setBackgroundColor(orangeColor); setTextColor(Color.BLACK); setTypeface(null, Typeface.BOLD)
+            setOnClickListener {
+                val dialogLayout = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 30, 50, 30) }
+                val etTitulo = EditText(this@MainActivity).apply { hint = "Ej. Renovar ITV"; setTextColor(Color.BLACK) }
+                val etCoche = Spinner(this@MainActivity).apply { adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listaCoches) }
+                val btnFecha = Button(this@MainActivity).apply { text = "Elegir fecha"; setBackgroundColor(Color.LTGRAY); setTextColor(Color.BLACK) }
+                val tvFecha = TextView(this@MainActivity).apply { text = "Fecha: Sin elegir"; setTextColor(Color.BLACK); setPadding(0, 20, 0, 20) }
+                var fechaElegida = ""
+
+                btnFecha.setOnClickListener {
+                    val c = Calendar.getInstance()
+                    DatePickerDialog(this@MainActivity, { _, year, month, day ->
+                        fechaElegida = "%02d/%02d/%d".format(day, month + 1, year)
+                        tvFecha.text = "Fecha: $fechaElegida"
+                    }, c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH)).show()
+                }
+
+                dialogLayout.addView(etTitulo); dialogLayout.addView(etCoche); dialogLayout.addView(btnFecha); dialogLayout.addView(tvFecha)
+
+                AlertDialog.Builder(this@MainActivity).setTitle("Nuevo Recordatorio").setView(dialogLayout)
+                    .setPositiveButton("Guardar") { _, _ ->
+                        if (etTitulo.text.isNotEmpty() && fechaElegida.isNotEmpty()) {
+                            listaRecordatorios.add(Recordatorio(etTitulo.text.toString(), fechaElegida, etCoche.selectedItem.toString()))
+                            guardarDatos(); mostrarPantallaRecordatorios()
+                        }
+                    }.setNegativeButton("Cancelar", null).show()
+            }
+        }
+        layout.addView(btnAddRec, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 30) })
+
+        for (r in listaRecordatorios) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL; setPadding(40, 40, 40, 40)
+                background = GradientDrawable().apply { setColor(Color.parseColor("#222222")); cornerRadius = 30f }
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 20) }
+            }
+            val tvInfo = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f) }
+            tvInfo.addView(TextView(this).apply { text = r.titulo; setTextColor(orangeColor); textSize = 18f; setTypeface(null, Typeface.BOLD) })
+            tvInfo.addView(TextView(this).apply { text = "${r.coche} | ${r.fecha}"; setTextColor(Color.WHITE); textSize = 14f })
+            
+            val btnDel = TextView(this).apply { 
+                text = "🗑️"; textSize = 20f; gravity = Gravity.CENTER_VERTICAL
+                setOnClickListener {
+                    listaRecordatorios.remove(r); guardarDatos(); mostrarPantallaRecordatorios()
+                }
+            }
+            card.addView(tvInfo); card.addView(btnDel)
+            layout.addView(card)
+        }
+    }
+
+    // ==========================================
     // PANTALLA EVOLUCIÓN DEL PRECIO
     // ==========================================
     fun mostrarPantallaEvolucion() {
-        contentLayout.removeAllViews()
-        rootLayout.removeAllViews()
+        contentLayout.removeAllViews(); rootLayout.removeAllViews()
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
         val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 80, 50, 50) }
         contentLayout.addView(layout)
 
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val btnBack = TextView(this).apply {
-            text = "← Volver"; setTextColor(orangeColor); textSize = 18f
-            setOnClickListener { mostrarPantallaPrincipal() }
-        }
+        val btnBack = TextView(this).apply { text = "← Volver"; setTextColor(orangeColor); textSize = 18f; setOnClickListener { mostrarPantallaPrincipal() } }
         val title = TextView(this).apply { text = "  Evolución Precio"; setTextColor(Color.WHITE); textSize = 24f; setTypeface(null, Typeface.BOLD) }
         header.addView(btnBack); header.addView(title)
         layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
@@ -624,41 +573,26 @@ class MainActivity : Activity() {
         spinnerCoche.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, opciones)
         layout.addView(spinnerCoche)
 
-        val txtInfo = TextView(this).apply {
-            setTextColor(Color.LTGRAY); textSize = 14f; setPadding(0, 20, 0, 20)
-            text = "Precio del combustible por fecha (€/L o €/kWh)"
-        }
-        layout.addView(txtInfo)
-
         val lineChart = LineChartView(this)
         layout.addView(lineChart, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 800))
 
         fun actualizarGrafico(cocheSeleccionado: String) {
             val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
             val repostajes = listaGastos.filter { 
-                (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) &&
-                it.tipo == "Combustible" && it.litros.isNotEmpty() && it.importe.isNotEmpty() 
-            }.sortedBy {
-                try { formatter.parse(it.fecha)?.time ?: 0L } catch(e: Exception) { 0L }
-            }
+                (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) && it.tipo == "Combustible" && it.litros.isNotEmpty() && it.importe.isNotEmpty() 
+            }.sortedBy { try { formatter.parse(it.fecha)?.time ?: 0L } catch(e: Exception) { 0L } }
 
             val datosGrafico = mutableListOf<Pair<String, Float>>()
             for (r in repostajes) {
                 val litros = r.litros.replace(",", ".").toFloatOrNull() ?: 1f
                 val importe = r.importe.replace(",", ".").toFloatOrNull() ?: 0f
-                if (litros > 0f) {
-                    val precioLitro = importe / litros
-                    val fechaCorta = r.fecha.substring(0, 5)
-                    datosGrafico.add(Pair(fechaCorta, precioLitro))
-                }
+                if (litros > 0f) datosGrafico.add(Pair(r.fecha.substring(0, 5), importe / litros))
             }
             lineChart.setData(datosGrafico)
         }
 
         spinnerCoche.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
-            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                actualizarGrafico(spinnerCoche.selectedItem.toString())
-            }
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) { actualizarGrafico(spinnerCoche.selectedItem.toString()) }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
     }
@@ -666,9 +600,7 @@ class MainActivity : Activity() {
     class LineChartView(context: Context) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private var data: List<Pair<String, Float>> = emptyList()
-        private val lineColor = Color.parseColor("#FF9800")
-        private val textColor = Color.WHITE
-        private val dotColor = Color.parseColor("#E91E63")
+        private val lineColor = Color.parseColor("#FF9800"); private val textColor = Color.WHITE; private val dotColor = Color.parseColor("#E91E63")
 
         fun setData(newData: List<Pair<String, Float>>) { data = newData; invalidate() }
 
@@ -676,39 +608,31 @@ class MainActivity : Activity() {
             super.onDraw(canvas)
             if (data.isEmpty()) {
                 paint.color = Color.GRAY; paint.textSize = 40f; paint.textAlign = Paint.Align.CENTER
-                canvas.drawText("Sin datos de combustible", width / 2f, height / 2f, paint)
-                return
+                canvas.drawText("Sin datos", width / 2f, height / 2f, paint); return
             }
             if (data.size == 1) {
                 paint.color = dotColor; canvas.drawCircle(width / 2f, height / 2f, 15f, paint)
                 paint.color = textColor; paint.textSize = 30f; paint.textAlign = Paint.Align.CENTER
-                canvas.drawText("%.2f €".format(data[0].second), width / 2f, height / 2f - 40f, paint)
-                return
+                canvas.drawText("%.2f €".format(data[0].second), width / 2f, height / 2f - 40f, paint); return
             }
 
             val paddingLeft = 80f; val paddingRight = 50f; val paddingTop = 80f; val paddingBottom = 100f
             val chartWidth = width - paddingLeft - paddingRight; val chartHeight = height - paddingTop - paddingBottom
-
-            val prices = data.map { it.second }
-            val maxPrice = prices.maxOrNull() ?: 0f; val minPrice = prices.minOrNull() ?: 0f
+            val prices = data.map { it.second }; val maxPrice = prices.maxOrNull() ?: 0f; val minPrice = prices.minOrNull() ?: 0f
             val range = if (maxPrice == minPrice) 1f else maxPrice - minPrice
 
             paint.color = Color.parseColor("#333333"); paint.strokeWidth = 3f
             canvas.drawLine(paddingLeft, height - paddingBottom, width - paddingRight, height - paddingBottom, paint)
 
-            val points = mutableListOf<PointF>()
-            val stepX = chartWidth / (data.size - 1)
-
+            val points = mutableListOf<PointF>(); val stepX = chartWidth / (data.size - 1)
             for (i in data.indices) {
                 val x = paddingLeft + (i * stepX)
-                val normalizedY = (data[i].second - minPrice) / range
-                val y = (height - paddingBottom) - (normalizedY * chartHeight)
+                val y = (height - paddingBottom) - (((data[i].second - minPrice) / range) * chartHeight)
                 points.add(PointF(x, y))
             }
 
             paint.color = lineColor; paint.strokeWidth = 6f; paint.style = Paint.Style.STROKE
-            val path = Path()
-            path.moveTo(points[0].x, points[0].y)
+            val path = Path(); path.moveTo(points[0].x, points[0].y)
             for (i in 1 until points.size) path.lineTo(points[i].x, points[i].y)
             canvas.drawPath(path, paint)
 
@@ -717,8 +641,7 @@ class MainActivity : Activity() {
                 val pt = points[i]
                 paint.color = dotColor; canvas.drawCircle(pt.x, pt.y, 12f, paint)
                 paint.color = textColor; canvas.drawText("%.2f".format(data[i].second), pt.x, pt.y - 30f, paint)
-                paint.color = Color.LTGRAY; paint.textSize = 22f
-                canvas.drawText(data[i].first, pt.x, height - paddingBottom + 40f, paint)
+                paint.color = Color.LTGRAY; paint.textSize = 22f; canvas.drawText(data[i].first, pt.x, height - paddingBottom + 40f, paint)
                 paint.textSize = 26f
             }
         }
@@ -728,35 +651,21 @@ class MainActivity : Activity() {
     // PANTALLA ESTADÍSTICAS
     // ==========================================
     fun mostrarPantallaEstadisticas() {
-        contentLayout.removeAllViews()
-        rootLayout.removeAllViews()
+        contentLayout.removeAllViews(); rootLayout.removeAllViews()
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
-        val scroll = ScrollView(this)
-        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 80, 50, 50) }
-        scroll.addView(layout)
-        contentLayout.addView(scroll)
+        val scroll = ScrollView(this); val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 80, 50, 50) }
+        scroll.addView(layout); contentLayout.addView(scroll)
 
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val btnBack = TextView(this).apply {
-            text = "← Volver"
-            setTextColor(orangeColor)
-            textSize = 18f
-            setOnClickListener { mostrarPantallaPrincipal() }
-        }
-        val title = TextView(this).apply {
-            text = "  Estadísticas y Costes"
-            setTextColor(Color.WHITE)
-            textSize = 24f
-            setTypeface(null, Typeface.BOLD)
-        }
+        val btnBack = TextView(this).apply { text = "← Volver"; setTextColor(orangeColor); textSize = 18f; setOnClickListener { mostrarPantallaPrincipal() } }
+        val title = TextView(this).apply { text = "  Estadísticas y Costes"; setTextColor(Color.WHITE); textSize = 24f; setTypeface(null, Typeface.BOLD) }
         header.addView(btnBack); header.addView(title)
         layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
 
         val spinnerStats = Spinner(this)
         val opciones = mutableListOf("Todos los coches"); opciones.addAll(listaCoches.distinct())
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, opciones)
-        spinnerStats.adapter = adapter
+        spinnerStats.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, opciones)
         layout.addView(spinnerStats)
 
         val statsLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(0, 30, 0, 0) }
@@ -764,27 +673,22 @@ class MainActivity : Activity() {
 
         fun calcularStats(cocheSeleccionado: String) {
             statsLayout.removeAllViews()
-            
             val repostajes = listaGastos.filter { 
-                (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) &&
-                it.tipo == "Combustible" && it.litros.isNotEmpty() && it.km.isNotEmpty() 
+                (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) && it.tipo == "Combustible" && it.litros.isNotEmpty() && it.km.isNotEmpty() 
             }.sortedBy { it.km.toIntOrNull() ?: 0 }
 
             if (repostajes.size < 2) {
-                statsLayout.addView(TextView(this).apply { text = "Necesitas al menos 2 repostajes con Km para ver el consumo."; setTextColor(Color.LTGRAY); setPadding(0,0,0,20) })
+                statsLayout.addView(TextView(this).apply { text = "Necesitas al menos 2 repostajes con Km."; setTextColor(Color.LTGRAY) })
             } else {
                 var totalLitros = 0.0; var totalImporte = 0.0
-                var consumos = mutableListOf<Double>()
-                var litrosAcumulados = 0.0; var ultimoKmLleno = repostajes.first().km.toIntOrNull() ?: 0
+                var consumos = mutableListOf<Double>(); var litrosAcumulados = 0.0; var ultimoKmLleno = repostajes.first().km.toIntOrNull() ?: 0
 
                 for (i in repostajes.indices) {
                     val r = repostajes[i]
                     val litros = r.litros.replace(",", ".").toDoubleOrNull() ?: 0.0
                     val importe = r.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
                     val kmActual = r.km.toIntOrNull() ?: 0
-
                     totalLitros += litros; totalImporte += importe; litrosAcumulados += litros
-
                     if (r.depositoLleno && i > 0) {
                         val kmRecorridos = kmActual - ultimoKmLleno
                         if (kmRecorridos > 0) consumos.add((litrosAcumulados / kmRecorridos) * 100)
@@ -802,15 +706,12 @@ class MainActivity : Activity() {
                     val rowVal = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
                     val tvValor = TextView(this).apply { text = valor; setTextColor(orangeColor); textSize = 32f; setTypeface(null, Typeface.BOLD) }
                     val tvSufijo = TextView(this).apply { text = " $sufijo"; setTextColor(Color.WHITE); textSize = 16f; setPadding(0, 0, 0, 5) }
-                    rowVal.addView(tvValor); rowVal.addView(tvSufijo); card.addView(tvTitulo); card.addView(rowVal)
-                    statsLayout.addView(card)
+                    rowVal.addView(tvValor); rowVal.addView(tvSufijo); card.addView(tvTitulo); card.addView(rowVal); statsLayout.addView(card)
                 }
 
                 if (consumos.isNotEmpty()) agregarTarjeta("Consumo Medio", "%.2f".format(consumos.average()), "L/100km")
                 else agregarTarjeta("Consumo Medio", "--", "Faltan repostajes 'Llenos'")
-
                 if (totalLitros > 0) agregarTarjeta("Precio Medio Combustible", "%.3f".format(totalImporte / totalLitros), "€/L")
-
                 val kmTotalesCombustible = (repostajes.last().km.toIntOrNull() ?: 0) - (repostajes.first().km.toIntOrNull() ?: 0)
                 if (kmTotalesCombustible > 0) agregarTarjeta("Coste solo Gasolina/Km", "%.3f".format(totalImporte / kmTotalesCombustible), "€/km")
             }
@@ -820,16 +721,11 @@ class MainActivity : Activity() {
 
             if (gastosConKm.size >= 2) {
                 val listaKms = gastosConKm.map { it.km.toInt() }
-                val kmMin = listaKms.minOrNull() ?: 0
-                val kmMax = listaKms.maxOrNull() ?: 0
+                val kmMin = listaKms.minOrNull() ?: 0; val kmMax = listaKms.maxOrNull() ?: 0
                 val kmTotalesReales = kmMax - kmMin
-
                 if (kmTotalesReales > 0) {
                     var gastoTotalReal = 0.0
-                    for (g in gastosCoche) {
-                        gastoTotalReal += g.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
-                    }
-
+                    for (g in gastosCoche) gastoTotalReal += g.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
                     val costeRealKm = gastoTotalReal / kmTotalesReales
 
                     val card = LinearLayout(this).apply {
@@ -841,20 +737,14 @@ class MainActivity : Activity() {
                     val rowVal = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
                     val tvValor = TextView(this).apply { text = "%.3f".format(costeRealKm); setTextColor(Color.WHITE); textSize = 36f; setTypeface(null, Typeface.BOLD) }
                     val tvSufijo = TextView(this).apply { text = " €/km"; setTextColor(Color.WHITE); textSize = 16f; setPadding(0, 0, 0, 5) }
-                    
                     val tvDetalle = TextView(this).apply { 
-                        text = "Calculado sobre $kmTotalesReales km recorridos.\nGasto total: %.2f € (Gasolina + Mantenimiento + Otros)".format(gastoTotalReal)
-                        setTextColor(Color.LTGRAY)
-                        textSize = 12f
-                        setPadding(0, 10, 0, 0)
+                        text = "Calculado sobre $kmTotalesReales km.\nGasto total: %.2f €".format(gastoTotalReal); setTextColor(Color.LTGRAY); textSize = 12f; setPadding(0, 10, 0, 0)
                     }
-
-                    rowVal.addView(tvValor); rowVal.addView(tvSufijo); 
-                    card.addView(tvTitulo); card.addView(rowVal); card.addView(tvDetalle)
+                    rowVal.addView(tvValor); rowVal.addView(tvSufijo); card.addView(tvTitulo); card.addView(rowVal); card.addView(tvDetalle)
                     statsLayout.addView(card)
                 }
             } else {
-                statsLayout.addView(TextView(this).apply { text = "\nAñade más gastos con kilómetros (ITV, taller, etc.) para calcular el Coste Real por Km."; setTextColor(Color.LTGRAY) })
+                statsLayout.addView(TextView(this).apply { text = "\nAñade más gastos con Km para el Coste Real."; setTextColor(Color.LTGRAY) })
             }
         }
 
@@ -868,18 +758,14 @@ class MainActivity : Activity() {
     // PANTALLA GRÁFICO DE TARTA
     // ==========================================
     fun mostrarPantallaResumen() {
-        contentLayout.removeAllViews()
-        rootLayout.removeAllViews()
+        contentLayout.removeAllViews(); rootLayout.removeAllViews()
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
         val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 80, 50, 50) }
         contentLayout.addView(layout)
 
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        val btnBack = TextView(this).apply {
-            text = "← Volver"; setTextColor(orangeColor); textSize = 18f
-            setOnClickListener { mostrarPantallaPrincipal() }
-        }
+        val btnBack = TextView(this).apply { text = "← Volver"; setTextColor(orangeColor); textSize = 18f; setOnClickListener { mostrarPantallaPrincipal() } }
         val title = TextView(this).apply { text = "  Resumen Gráfico"; setTextColor(Color.WHITE); textSize = 24f; setTypeface(null, Typeface.BOLD) }
         header.addView(btnBack); header.addView(title)
         layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
@@ -902,20 +788,14 @@ class MainActivity : Activity() {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 val seleccion = spinnerResumen.selectedItem.toString()
                 val filtrados = if (seleccion == "Todos los coches") listaGastos else listaGastos.filter { it.coche == seleccion }
-                var total = 0.0
-                val datosTarta = mutableMapOf<String, Float>()
-                
+                var total = 0.0; val datosTarta = mutableMapOf<String, Float>()
                 for (g in filtrados) {
                     val imp = g.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
-                    total += imp
-                    datosTarta[g.tipo] = (datosTarta[g.tipo] ?: 0f) + imp.toFloat()
+                    total += imp; datosTarta[g.tipo] = (datosTarta[g.tipo] ?: 0f) + imp.toFloat()
                 }
-                
-                txtTotal.text = "Gasto Total: %.2f €".format(total)
-                pieChart.setData(datosTarta)
+                txtTotal.text = "Gasto Total: %.2f €".format(total); pieChart.setData(datosTarta)
 
-                legendLayout.removeAllViews()
-                var colorIdx = 0
+                legendLayout.removeAllViews(); var colorIdx = 0
                 for ((tipo, valor) in datosTarta) {
                     if (valor > 0) {
                         val row = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL; setPadding(0, 10, 0, 10) }
@@ -924,9 +804,7 @@ class MainActivity : Activity() {
                             background = GradientDrawable().apply { setColor(Color.parseColor(cardColors[colorIdx % cardColors.size])); cornerRadius = 5f }
                         }
                         val text = TextView(this@MainActivity).apply { text = "  $tipo: %.2f €".format(valor); setTextColor(Color.WHITE); textSize = 16f }
-                        row.addView(colorBox); row.addView(text)
-                        legendLayout.addView(row)
-                        colorIdx++
+                        row.addView(colorBox); row.addView(text); legendLayout.addView(row); colorIdx++
                     }
                 }
             }
@@ -935,8 +813,7 @@ class MainActivity : Activity() {
     }
 
     class PieChartView(context: Context) : View(context) {
-        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        private val rectF = RectF()
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG); private val rectF = RectF()
         private var data: Map<String, Float> = emptyMap()
         private val colors = listOf(Color.parseColor("#E91E63"), Color.parseColor("#673AB7"), Color.parseColor("#3F51B5"), Color.parseColor("#009688"), Color.parseColor("#FF5722"))
 
@@ -945,13 +822,9 @@ class MainActivity : Activity() {
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             if (data.isEmpty()) return
-            val total = data.values.sum()
-            var startAngle = -90f
-            val padding = 20f
-            val minSize = width.coerceAtMost(height).toFloat()
-            val radius = (minSize / 2f) - padding
-            val centerX = width / 2f
-            val centerY = height / 2f
+            val total = data.values.sum(); var startAngle = -90f; val padding = 20f
+            val minSize = width.coerceAtMost(height).toFloat(); val radius = (minSize / 2f) - padding
+            val centerX = width / 2f; val centerY = height / 2f
             rectF.set(centerX - radius, centerY - radius, centerX + radius, centerY + radius)
 
             var colorIdx = 0
@@ -959,17 +832,29 @@ class MainActivity : Activity() {
                 val sweepAngle = (valor / total) * 360f
                 paint.color = colors[colorIdx % colors.size]
                 canvas.drawArc(rectF, startAngle, sweepAngle, true, paint)
-                startAngle += sweepAngle
-                colorIdx++
+                startAngle += sweepAngle; colorIdx++
             }
-            paint.color = Color.parseColor("#121212")
-            canvas.drawCircle(centerX, centerY, radius * 0.5f, paint)
+            paint.color = Color.parseColor("#121212"); canvas.drawCircle(centerX, centerY, radius * 0.5f, paint)
         }
     }
 
     // ==========================================
-    // CSV Y RESULTADOS DE ACTIVIDADES
+    // COPIA DE SEGURIDAD JSON (NUBE)
     // ==========================================
+    fun exportarJSON() {
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE); type = "application/json"; putExtra(Intent.EXTRA_TITLE, "backup_mycars.json")
+        }
+        startActivityForResult(intent, 500)
+    }
+
+    fun importarJSON() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE); type = "*/*"
+        }
+        startActivityForResult(intent, 600)
+    }
+
     fun exportarCSV() {
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE); type = "text/csv"; putExtra(Intent.EXTRA_TITLE, "gastos.csv")
@@ -987,39 +872,30 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         
-        // RESULTADO DE LA CÁMARA
         if (requestCode == 400 && resultCode == RESULT_OK && fotoUri != null) {
-            uriSeleccionada = fotoUri
-            txtArchivoGlobal?.text = "✅ Foto capturada"
-            return
+            uriSeleccionada = fotoUri; txtArchivoGlobal?.text = "✅ Foto capturada"; return
         }
-
-        // RESULTADO DE ADJUNTAR ARCHIVO
         if (requestCode == 300 && resultCode == RESULT_OK && data?.data != null) {
             uriSeleccionada = data.data
-            try {
-                contentResolver.takePersistableUriPermission(uriSeleccionada!!, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (e: Exception) { }
-            txtArchivoGlobal?.text = "✅ Archivo seleccionado"
-            return
+            try { contentResolver.takePersistableUriPermission(uriSeleccionada!!, Intent.FLAG_GRANT_READ_URI_PERMISSION) } catch (e: Exception) { }
+            txtArchivoGlobal?.text = "✅ Archivo seleccionado"; return
         }
 
         if (resultCode == RESULT_OK) {
             val uri: Uri? = data?.data
-            if (requestCode == 100 && uri != null) {
+            if (requestCode == 100 && uri != null) { // CSV EXPORT
                 try {
                     contentResolver.openOutputStream(uri)?.use { out ->
                         val csv = StringBuilder("Coche,Tipo,Litros,Km,Importe,Fecha,Lleno,Observaciones,Documento\n")
                         for (g in listaGastos) csv.append("${g.coche},${g.tipo},${g.litros},${g.km},${g.importe},${g.fecha},${g.depositoLleno},\"${g.observaciones}\",${g.documentoUri ?: ""}\n")
                         out.write(csv.toString().toByteArray())
                     }
-                    Toast.makeText(this, "¡Exportado!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "¡Exportado CSV!", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) { Toast.makeText(this, "Error", Toast.LENGTH_SHORT).show() }
-            } else if (requestCode == 200 && uri != null) {
+            } else if (requestCode == 200 && uri != null) { // CSV IMPORT
                 try {
                     contentResolver.openInputStream(uri)?.use { input ->
-                        val lines = input.bufferedReader().readLines()
-                        listaGastos.clear()
+                        val lines = input.bufferedReader().readLines(); listaGastos.clear()
                         for (i in 1 until lines.size) {
                             val p = lines[i].split(",")
                             if (p.size >= 6) {
@@ -1027,25 +903,71 @@ class MainActivity : Activity() {
                                 if (!listaCoches.contains(p[0])) listaCoches.add(p[0])
                             }
                         }
-                        guardarDatos()
-                        mostrarPantallaPrincipal()
+                        guardarDatos(); mostrarPantallaPrincipal()
                     }
-                    Toast.makeText(this, "¡Importado!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "¡Importado CSV!", Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) { Toast.makeText(this, "Error al importar", Toast.LENGTH_SHORT).show() }
+            } else if (requestCode == 500 && uri != null) { // JSON EXPORT
+                try {
+                    val backupObj = JSONObject()
+                    val gastosArray = JSONArray()
+                    for (g in listaGastos) {
+                        val obj = JSONObject()
+                        obj.put("coche", g.coche); obj.put("tipo", g.tipo); obj.put("litros", g.litros)
+                        obj.put("km", g.km); obj.put("importe", g.importe); obj.put("fecha", g.fecha)
+                        obj.put("colorHex", g.colorHex); obj.put("depositoLleno", g.depositoLleno)
+                        obj.put("observaciones", g.observaciones); obj.put("documentoUri", g.documentoUri ?: "")
+                        gastosArray.put(obj)
+                    }
+                    val cochesArray = JSONArray(); for (c in listaCoches) cochesArray.put(c)
+                    val recArray = JSONArray()
+                    for (r in listaRecordatorios) {
+                        val obj = JSONObject(); obj.put("titulo", r.titulo); obj.put("fecha", r.fecha); obj.put("coche", r.coche); recArray.put(obj)
+                    }
+                    backupObj.put("gastos", gastosArray); backupObj.put("coches", cochesArray); backupObj.put("recordatorios", recArray)
+                    
+                    contentResolver.openOutputStream(uri)?.use { out -> out.write(backupObj.toString().toByteArray()) }
+                    Toast.makeText(this, "¡Copia de seguridad guardada!", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) { Toast.makeText(this, "Error al guardar copia", Toast.LENGTH_SHORT).show() }
+            } else if (requestCode == 600 && uri != null) { // JSON IMPORT
+                try {
+                    contentResolver.openInputStream(uri)?.use { input ->
+                        val jsonString = input.bufferedReader().readText()
+                        val backupObj = JSONObject(jsonString)
+                        
+                        listaGastos.clear(); listaCoches.clear(); listaRecordatorios.clear()
+                        
+                        val gastosArray = backupObj.getJSONArray("gastos")
+                        for (i in 0 until gastosArray.length()) {
+                            val obj = gastosArray.getJSONObject(i)
+                            listaGastos.add(Gasto(obj.getString("coche"), obj.getString("tipo"), obj.optString("litros"), obj.optString("km"), obj.getString("importe"), obj.getString("fecha"), obj.getString("colorHex"), obj.optBoolean("depositoLleno"), obj.optString("observaciones"), obj.optString("documentoUri").takeIf { it.isNotEmpty() }))
+                        }
+                        val cochesArray = backupObj.getJSONArray("coches")
+                        for (i in 0 until cochesArray.length()) listaCoches.add(cochesArray.getString(i))
+                        
+                        if (backupObj.has("recordatorios")) {
+                            val recArray = backupObj.getJSONArray("recordatorios")
+                            for (i in 0 until recArray.length()) {
+                                val obj = recArray.getJSONObject(i)
+                                listaRecordatorios.add(Recordatorio(obj.getString("titulo"), obj.getString("fecha"), obj.getString("coche")))
+                            }
+                        }
+                        colorIndex = listaGastos.size
+                        guardarDatos(); mostrarPantallaPrincipal()
+                    }
+                    Toast.makeText(this, "¡Copia restaurada!", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) { Toast.makeText(this, "Error al restaurar", Toast.LENGTH_SHORT).show() }
             }
         }
     }
 }
 
 data class Gasto(
-    val coche: String,
-    val tipo: String,
-    val litros: String,
-    val km: String,
-    val importe: String,
-    val fecha: String,
-    val colorHex: String,
-    val depositoLleno: Boolean,
-    val observaciones: String,
-    val documentoUri: String?
+    val coche: String, val tipo: String, val litros: String, val km: String,
+    val importe: String, val fecha: String, val colorHex: String,
+    val depositoLleno: Boolean, val observaciones: String, val documentoUri: String?
+)
+
+data class Recordatorio(
+    val titulo: String, val fecha: String, val coche: String
 )
