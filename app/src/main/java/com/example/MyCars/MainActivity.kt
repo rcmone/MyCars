@@ -37,7 +37,6 @@ class MainActivity : Activity() {
     lateinit var rootLayout: FrameLayout
     lateinit var contentLayout: LinearLayout
 
-    // Variables temporales para el formulario
     var uriSeleccionada: Uri? = null
     var txtArchivoGlobal: TextView? = null
 
@@ -78,7 +77,6 @@ class MainActivity : Activity() {
                 stream.write(jsonArray.toString().toByteArray())
             }
             
-            // Guardamos también la lista de coches personalizada
             val cochesArray = JSONArray()
             for (c in listaCoches) cochesArray.put(c)
             openFileOutput("coches.json", MODE_PRIVATE).use { stream ->
@@ -90,42 +88,45 @@ class MainActivity : Activity() {
     }
 
     fun cargarDatos() {
+        // Cargar lista de coches
         try {
-            // Cargar lista de coches
-            if (fileExists("coches.json")) {
-                val jsonString = openFileInput("coches.json").bufferedReader().use { it.readText() }
-                val jsonArray = JSONArray(jsonString)
-                listaCoches.clear()
-                for (i in 0 until jsonArray.length()) {
-                    listaCoches.add(jsonArray.getString(i))
-                }
+            val jsonString = openFileInput("coches.json").bufferedReader().use { it.readText() }
+            val jsonArray = JSONArray(jsonString)
+            listaCoches.clear()
+            for (i in 0 until jsonArray.length()) {
+                listaCoches.add(jsonArray.getString(i))
             }
+        } catch (e: java.io.FileNotFoundException) {
+            // Primera vez, no existe el archivo
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
 
-            // Cargar gastos
-            if (fileExists("gastos.json")) {
-                val jsonString = openFileInput("gastos.json").bufferedReader().use { it.readText() }
-                val jsonArray = JSONArray(jsonString)
-                listaGastos.clear()
-                for (i in 0 until jsonArray.length()) {
-                    val obj = jsonArray.getJSONObject(i)
-                    listaGastos.add(
-                        Gasto(
-                            coche = obj.getString("coche"),
-                            tipo = obj.getString("tipo"),
-                            litros = obj.optString("litros", ""),
-                            km = obj.optString("km", ""),
-                            importe = obj.getString("importe"),
-                            fecha = obj.getString("fecha"),
-                            colorHex = obj.getString("colorHex"),
-                            depositoLleno = obj.optBoolean("depositoLleno", false),
-                            observaciones = obj.optString("observaciones", ""),
-                            documentoUri = obj.optString("documentoUri").takeIf { it.isNotEmpty() }
-                        )
+        // Cargar gastos
+        try {
+            val jsonString = openFileInput("gastos.json").bufferedReader().use { it.readText() }
+            val jsonArray = JSONArray(jsonString)
+            listaGastos.clear()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                listaGastos.add(
+                    Gasto(
+                        coche = obj.getString("coche"),
+                        tipo = obj.getString("tipo"),
+                        litros = obj.optString("litros", ""),
+                        km = obj.optString("km", ""),
+                        importe = obj.getString("importe"),
+                        fecha = obj.getString("fecha"),
+                        colorHex = obj.getString("colorHex"),
+                        depositoLleno = obj.optBoolean("depositoLleno", false),
+                        observaciones = obj.optString("observaciones", ""),
+                        documentoUri = obj.optString("documentoUri").takeIf { it.isNotEmpty() }
                     )
-                }
-                // Actualizamos el contador de colores para que no se repitan
-                colorIndex = listaGastos.size
+                )
             }
+            colorIndex = listaGastos.size
+        } catch (e: java.io.FileNotFoundException) {
+            // Primera vez, no existe el archivo
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -256,7 +257,7 @@ class MainActivity : Activity() {
                             .setMessage("¿Estás seguro de que quieres borrar este gasto?")
                             .setPositiveButton("Sí") { _, _ ->
                                 listaGastos.remove(g)
-                                guardarDatos() // Guardamos al borrar
+                                guardarDatos()
                                 renderLista(searchBar.text.toString())
                             }
                             .setNegativeButton("No", null)
@@ -426,7 +427,7 @@ class MainActivity : Activity() {
                         }
                         if (listaCoches.isEmpty()) listaCoches.add("Coche Principal")
                         spinnerCoche.adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listaCoches)
-                        guardarDatos() // Guardamos la lista de coches modificada
+                        guardarDatos()
                     }.setNegativeButton("Cancelar", null).show()
             }
         }
@@ -525,7 +526,7 @@ class MainActivity : Activity() {
                         documentoUri = uriSeleccionada?.toString()
                     ))
                     colorIndex++
-                    guardarDatos() // <--- GUARDAMOS AL AÑADIR
+                    guardarDatos()
                     Toast.makeText(this@MainActivity, "Guardado", Toast.LENGTH_SHORT).show()
                     mostrarPantallaPrincipal()
                 } else {
@@ -759,8 +760,9 @@ class MainActivity : Activity() {
         
         if (requestCode == 300 && resultCode == RESULT_OK && data?.data != null) {
             uriSeleccionada = data.data
-            // Permiso persistente para que el archivo siga accesible tras reiniciar la app
-            contentResolver.takePersistableUriPermission(uriSeleccionada!!, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            try {
+                contentResolver.takePersistableUriPermission(uriSeleccionada!!, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: Exception) { }
             txtArchivoGlobal?.text = "✅ Archivo seleccionado"
             return
         }
@@ -788,7 +790,7 @@ class MainActivity : Activity() {
                                 if (!listaCoches.contains(p[0])) listaCoches.add(p[0])
                             }
                         }
-                        guardarDatos() // <--- GUARDAMOS AL IMPORTAR
+                        guardarDatos()
                         mostrarPantallaPrincipal()
                     }
                     Toast.makeText(this, "¡Importado!", Toast.LENGTH_SHORT).show()
