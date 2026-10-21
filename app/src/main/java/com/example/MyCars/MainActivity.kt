@@ -25,7 +25,7 @@ import java.util.*
 class MainActivity : Activity() {
 
     val listaGastos = mutableListOf<Gasto>()
-    // Aquí definimos tus dos coches por defecto
+    // Aquí definimos los coches por defecto
     val listaCoches = mutableListOf("Coche A", "Coche B") 
     var colorIndex = 0
 
@@ -222,7 +222,7 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // FORMULARIO NUEVO GASTO (CON DESPLEGABLE)
+    // FORMULARIO NUEVO GASTO (CON GESTIÓN DE NOMBRES)
     // ==========================================
     fun mostrarFormularioNuevoGasto() {
         contentLayout.removeAllViews()
@@ -250,37 +250,74 @@ class MainActivity : Activity() {
         header.addView(btnBack); header.addView(title)
         layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
 
-        // --- SELECTOR DE COCHE (DESPLEGABLE) ---
+        // SELECTOR DE COCHE
         val spinnerCoche = Spinner(this)
         val adapterCoche = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listaCoches)
         spinnerCoche.adapter = adapterCoche
         layout.addView(spinnerCoche)
 
-        // Botón para añadir más coches en el futuro
-        val btnAddCoche = Button(this).apply {
-            text = "+ Añadir nuevo coche a la lista"
+        // BOTÓN PARA EDITAR LOS NOMBRES DE LOS COCHES
+        val btnEditCoches = Button(this).apply {
+            text = "✏️ Editar nombres de coches"
             setBackgroundColor(Color.TRANSPARENT)
             setTextColor(orangeColor)
             setOnClickListener {
-                val input = EditText(this@MainActivity).apply { setTextColor(Color.BLACK) } // Texto negro para que se lea en el fondo blanco del diálogo
+                // Creamos un diseño para el diálogo
+                val dialogLayout = LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(50, 30, 50, 30)
+                }
+                val scrollDialog = ScrollView(this@MainActivity)
+                scrollDialog.addView(dialogLayout)
+                val editTexts = mutableListOf<EditText>()
+
+                // Función para añadir una caja de texto al diálogo
+                fun agregarCampo(nombre: String) {
+                    val et = EditText(this@MainActivity).apply {
+                        setText(nombre)
+                        setTextColor(Color.BLACK)
+                        hint = "Nombre del coche"
+                    }
+                    editTexts.add(et)
+                    dialogLayout.addView(et)
+                }
+
+                // Cargamos los coches actuales
+                listaCoches.forEach { agregarCampo(it) }
+
+                // Botón para añadir más coches si se quiere
+                val btnAddMore = Button(this@MainActivity).apply {
+                    text = "+ Añadir otro coche"
+                    setOnClickListener { agregarCampo("") }
+                }
+                dialogLayout.addView(btnAddMore)
+
+                // Mostrar el diálogo
                 AlertDialog.Builder(this@MainActivity)
-                    .setTitle("Nombre del nuevo coche")
-                    .setView(input)
-                    .setPositiveButton("Añadir") { _, _ ->
-                        val nombre = input.text.toString().trim()
-                        if (nombre.isNotEmpty() && !listaCoches.contains(nombre)) {
-                            listaCoches.add(nombre)
-                            adapterCoche.notifyDataSetChanged()
-                            spinnerCoche.setSelection(listaCoches.size - 1) // Selecciona el que acaba de crear
+                    .setTitle("Configurar nombres")
+                    .setView(scrollDialog)
+                    .setPositiveButton("Guardar") { _, _ ->
+                        listaCoches.clear()
+                        // Leemos lo que haya escrito el usuario
+                        for (et in editTexts) {
+                            val nombre = et.text.toString().trim()
+                            if (nombre.isNotEmpty() && !listaCoches.contains(nombre)) {
+                                listaCoches.add(nombre)
+                            }
                         }
+                        // Si borra todo, ponemos uno por defecto para que no falle
+                        if (listaCoches.isEmpty()) listaCoches.add("Coche Principal")
+                        
+                        // Actualizamos el desplegable inmediatamente
+                        spinnerCoche.adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listaCoches)
                     }
                     .setNegativeButton("Cancelar", null)
                     .show()
             }
         }
-        layout.addView(btnAddCoche)
+        layout.addView(btnEditCoches)
 
-        // Selector de tipo de gasto
+        // RESTO DEL FORMULARIO
         val spinnerGasto = Spinner(this)
         val tipos = arrayOf("Combustible", "Mantenimiento", "Otros")
         val adapterGasto = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, tipos)
@@ -455,7 +492,7 @@ class MainActivity : Activity() {
                             val p = lines[i].split(",")
                             if (p.size >= 6) {
                                 listaGastos.add(Gasto(p[0], p[1], p[2], p[3], p[4], p[5], cardColors[colorIndex++ % cardColors.size]))
-                                if (!listaCoches.contains(p[0])) listaCoches.add(p[0]) // Añade el coche si venía del CSV
+                                if (!listaCoches.contains(p[0])) listaCoches.add(p[0])
                             }
                         }
                         mostrarPantallaPrincipal()
