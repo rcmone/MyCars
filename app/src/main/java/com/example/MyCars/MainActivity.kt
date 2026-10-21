@@ -14,6 +14,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Bundle
+import android.provider.MediaStore
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
@@ -23,6 +24,7 @@ import android.view.ViewGroup
 import android.widget.*
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -40,6 +42,7 @@ class MainActivity : Activity() {
     lateinit var contentLayout: LinearLayout
 
     var uriSeleccionada: Uri? = null
+    var fotoUri: Uri? = null // Para guardar la foto temporal de la cámara
     var txtArchivoGlobal: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -162,7 +165,6 @@ class MainActivity : Activity() {
             layoutParams = params
         }
 
-        // NUEVO ICONO: GRÁFICO DE LÍNEAS
         val iconLineChart = TextView(this).apply {
             text = "📉"
             textSize = 24f
@@ -371,7 +373,7 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // FORMULARIO NUEVO GASTO
+    // FORMULARIO NUEVO GASTO (CON CÁMARA)
     // ==========================================
     fun mostrarFormularioNuevoGasto() {
         contentLayout.removeAllViews()
@@ -471,8 +473,31 @@ class MainActivity : Activity() {
         
         val inputObservaciones = EditText(this).apply { hint = "Observaciones (ej. Cambio de aceite)"; setTextColor(Color.WHITE) }
         
+        // BOTÓN DE CÁMARA
+        val btnCamara = Button(this).apply {
+            text = "📷 Hacer foto a la factura"
+            setBackgroundColor(Color.parseColor("#333333"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                val ficheroFoto = File(getExternalFilesDir(null), "factura_${System.currentTimeMillis()}.jpg")
+                try {
+                    fotoUri = androidx.core.content.FileProvider.getUriForFile(
+                        this@MainActivity,
+                        "com.example.MyCars.fileprovider", // Debe coincidir con el Manifest
+                        ficheroFoto
+                    )
+                    val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+                    intent.putExtra(MediaStore.EXTRA_OUTPUT, fotoUri)
+                    startActivityForResult(intent, 400)
+                } catch (e: Exception) {
+                    Toast.makeText(this@MainActivity, "Error al abrir la cámara", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+        // BOTÓN DE ADJUNTAR ARCHIVO (El que ya teníamos)
         val btnAdjuntar = Button(this).apply {
-            text = "📎 Adjuntar documento o foto"
+            text = "📎 O elegir de la galería/archivos"
             setBackgroundColor(Color.parseColor("#333333"))
             setTextColor(Color.WHITE)
             setOnClickListener {
@@ -492,6 +517,7 @@ class MainActivity : Activity() {
         }
 
         layoutExtras.addView(inputObservaciones)
+        layoutExtras.addView(btnCamara)
         layoutExtras.addView(btnAdjuntar)
         layoutExtras.addView(txtArchivoSeleccionado)
         layout.addView(layoutExtras)
@@ -574,7 +600,7 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // PANTALLA EVOLUCIÓN DEL PRECIO (FASE 3)
+    // PANTALLA EVOLUCIÓN DEL PRECIO
     // ==========================================
     fun mostrarPantallaEvolucion() {
         contentLayout.removeAllViews()
@@ -608,7 +634,6 @@ class MainActivity : Activity() {
         layout.addView(lineChart, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 800))
 
         fun actualizarGrafico(cocheSeleccionado: String) {
-            // Filtramos los repostajes y los ordenamos por fecha
             val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
             val repostajes = listaGastos.filter { 
                 (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) &&
@@ -623,7 +648,6 @@ class MainActivity : Activity() {
                 val importe = r.importe.replace(",", ".").toFloatOrNull() ?: 0f
                 if (litros > 0f) {
                     val precioLitro = importe / litros
-                    // Acortamos la fecha para que quepa (ej. 21/10)
                     val fechaCorta = r.fecha.substring(0, 5)
                     datosGrafico.add(Pair(fechaCorta, precioLitro))
                 }
@@ -639,7 +663,6 @@ class MainActivity : Activity() {
         }
     }
 
-    // Clase interna para dibujar el gráfico de líneas
     class LineChartView(context: Context) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         private var data: List<Pair<String, Float>> = emptyList()
@@ -647,47 +670,30 @@ class MainActivity : Activity() {
         private val textColor = Color.WHITE
         private val dotColor = Color.parseColor("#E91E63")
 
-        fun setData(newData: List<Pair<String, Float>>) {
-            data = newData
-            invalidate()
-        }
+        fun setData(newData: List<Pair<String, Float>>) { data = newData; invalidate() }
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             if (data.isEmpty()) {
-                paint.color = Color.GRAY
-                paint.textSize = 40f
-                paint.textAlign = Paint.Align.CENTER
+                paint.color = Color.GRAY; paint.textSize = 40f; paint.textAlign = Paint.Align.CENTER
                 canvas.drawText("Sin datos de combustible", width / 2f, height / 2f, paint)
                 return
             }
             if (data.size == 1) {
-                // Solo un punto
-                paint.color = dotColor
-                canvas.drawCircle(width / 2f, height / 2f, 15f, paint)
-                paint.color = textColor
-                paint.textSize = 30f
-                paint.textAlign = Paint.Align.CENTER
+                paint.color = dotColor; canvas.drawCircle(width / 2f, height / 2f, 15f, paint)
+                paint.color = textColor; paint.textSize = 30f; paint.textAlign = Paint.Align.CENTER
                 canvas.drawText("%.2f €".format(data[0].second), width / 2f, height / 2f - 40f, paint)
                 return
             }
 
-            val paddingLeft = 80f
-            val paddingRight = 50f
-            val paddingTop = 80f
-            val paddingBottom = 100f
-            
-            val chartWidth = width - paddingLeft - paddingRight
-            val chartHeight = height - paddingTop - paddingBottom
+            val paddingLeft = 80f; val paddingRight = 50f; val paddingTop = 80f; val paddingBottom = 100f
+            val chartWidth = width - paddingLeft - paddingRight; val chartHeight = height - paddingTop - paddingBottom
 
             val prices = data.map { it.second }
-            val maxPrice = prices.maxOrNull() ?: 0f
-            val minPrice = prices.minOrNull() ?: 0f
+            val maxPrice = prices.maxOrNull() ?: 0f; val minPrice = prices.minOrNull() ?: 0f
             val range = if (maxPrice == minPrice) 1f else maxPrice - minPrice
 
-            // Dibujar línea base (suelo)
-            paint.color = Color.parseColor("#333333")
-            paint.strokeWidth = 3f
+            paint.color = Color.parseColor("#333333"); paint.strokeWidth = 3f
             canvas.drawLine(paddingLeft, height - paddingBottom, width - paddingRight, height - paddingBottom, paint)
 
             val points = mutableListOf<PointF>()
@@ -695,42 +701,23 @@ class MainActivity : Activity() {
 
             for (i in data.indices) {
                 val x = paddingLeft + (i * stepX)
-                // Normalizar Y (invertido, porque el 0 está arriba en Canvas)
                 val normalizedY = (data[i].second - minPrice) / range
                 val y = (height - paddingBottom) - (normalizedY * chartHeight)
                 points.add(PointF(x, y))
             }
 
-            // Dibujar la línea
-            paint.color = lineColor
-            paint.strokeWidth = 6f
-            paint.style = Paint.Style.STROKE
+            paint.color = lineColor; paint.strokeWidth = 6f; paint.style = Paint.Style.STROKE
             val path = Path()
             path.moveTo(points[0].x, points[0].y)
-            for (i in 1 until points.size) {
-                path.lineTo(points[i].x, points[i].y)
-            }
+            for (i in 1 until points.size) path.lineTo(points[i].x, points[i].y)
             canvas.drawPath(path, paint)
 
-            // Dibujar puntos, valores y fechas
-            paint.style = Paint.Style.FILL
-            paint.textAlign = Paint.Align.CENTER
-            paint.textSize = 26f
-
+            paint.style = Paint.Style.FILL; paint.textAlign = Paint.Align.CENTER; paint.textSize = 26f
             for (i in points.indices) {
                 val pt = points[i]
-                
-                // Círculo del punto
-                paint.color = dotColor
-                canvas.drawCircle(pt.x, pt.y, 12f, paint)
-
-                // Texto del precio (encima del punto)
-                paint.color = textColor
-                canvas.drawText("%.2f".format(data[i].second), pt.x, pt.y - 30f, paint)
-
-                // Texto de la fecha (debajo de la línea base)
-                paint.color = Color.LTGRAY
-                paint.textSize = 22f
+                paint.color = dotColor; canvas.drawCircle(pt.x, pt.y, 12f, paint)
+                paint.color = textColor; canvas.drawText("%.2f".format(data[i].second), pt.x, pt.y - 30f, paint)
+                paint.color = Color.LTGRAY; paint.textSize = 22f
                 canvas.drawText(data[i].first, pt.x, height - paddingBottom + 40f, paint)
                 paint.textSize = 26f
             }
@@ -1000,6 +987,14 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         
+        // RESULTADO DE LA CÁMARA
+        if (requestCode == 400 && resultCode == RESULT_OK && fotoUri != null) {
+            uriSeleccionada = fotoUri
+            txtArchivoGlobal?.text = "✅ Foto capturada"
+            return
+        }
+
+        // RESULTADO DE ADJUNTAR ARCHIVO
         if (requestCode == 300 && resultCode == RESULT_OK && data?.data != null) {
             uriSeleccionada = data.data
             try {
