@@ -7,6 +7,8 @@ import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -160,6 +162,14 @@ class MainActivity : Activity() {
             layoutParams = params
         }
 
+        // NUEVO ICONO: GRÁFICO DE LÍNEAS
+        val iconLineChart = TextView(this).apply {
+            text = "📉"
+            textSize = 24f
+            setPadding(0, 0, 30, 0)
+            setOnClickListener { mostrarPantallaEvolucion() }
+        }
+
         val iconStats = TextView(this).apply {
             text = "📈"
             textSize = 24f
@@ -182,6 +192,7 @@ class MainActivity : Activity() {
             setOnClickListener { v -> showMenu(v) }
         }
 
+        iconsLayout.addView(iconLineChart)
         iconsLayout.addView(iconStats)
         iconsLayout.addView(iconChart)
         iconsLayout.addView(iconMenu)
@@ -563,7 +574,171 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // PANTALLA ESTADÍSTICAS (FASE 2: COSTE REAL)
+    // PANTALLA EVOLUCIÓN DEL PRECIO (FASE 3)
+    // ==========================================
+    fun mostrarPantallaEvolucion() {
+        contentLayout.removeAllViews()
+        rootLayout.removeAllViews()
+        rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 80, 50, 50) }
+        contentLayout.addView(layout)
+
+        val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        val btnBack = TextView(this).apply {
+            text = "← Volver"; setTextColor(orangeColor); textSize = 18f
+            setOnClickListener { mostrarPantallaPrincipal() }
+        }
+        val title = TextView(this).apply { text = "  Evolución Precio"; setTextColor(Color.WHITE); textSize = 24f; setTypeface(null, Typeface.BOLD) }
+        header.addView(btnBack); header.addView(title)
+        layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
+
+        val spinnerCoche = Spinner(this)
+        val opciones = mutableListOf("Todos los coches"); opciones.addAll(listaCoches.distinct())
+        spinnerCoche.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, opciones)
+        layout.addView(spinnerCoche)
+
+        val txtInfo = TextView(this).apply {
+            setTextColor(Color.LTGRAY); textSize = 14f; setPadding(0, 20, 0, 20)
+            text = "Precio del combustible por fecha (€/L o €/kWh)"
+        }
+        layout.addView(txtInfo)
+
+        val lineChart = LineChartView(this)
+        layout.addView(lineChart, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 800))
+
+        fun actualizarGrafico(cocheSeleccionado: String) {
+            // Filtramos los repostajes y los ordenamos por fecha
+            val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+            val repostajes = listaGastos.filter { 
+                (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) &&
+                it.tipo == "Combustible" && it.litros.isNotEmpty() && it.importe.isNotEmpty() 
+            }.sortedBy {
+                try { formatter.parse(it.fecha)?.time ?: 0L } catch(e: Exception) { 0L }
+            }
+
+            val datosGrafico = mutableListOf<Pair<String, Float>>()
+            for (r in repostajes) {
+                val litros = r.litros.replace(",", ".").toFloatOrNull() ?: 1f
+                val importe = r.importe.replace(",", ".").toFloatOrNull() ?: 0f
+                if (litros > 0f) {
+                    val precioLitro = importe / litros
+                    // Acortamos la fecha para que quepa (ej. 21/10)
+                    val fechaCorta = r.fecha.substring(0, 5)
+                    datosGrafico.add(Pair(fechaCorta, precioLitro))
+                }
+            }
+            lineChart.setData(datosGrafico)
+        }
+
+        spinnerCoche.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                actualizarGrafico(spinnerCoche.selectedItem.toString())
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
+
+    // Clase interna para dibujar el gráfico de líneas
+    class LineChartView(context: Context) : View(context) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        private var data: List<Pair<String, Float>> = emptyList()
+        private val lineColor = Color.parseColor("#FF9800")
+        private val textColor = Color.WHITE
+        private val dotColor = Color.parseColor("#E91E63")
+
+        fun setData(newData: List<Pair<String, Float>>) {
+            data = newData
+            invalidate()
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            if (data.isEmpty()) {
+                paint.color = Color.GRAY
+                paint.textSize = 40f
+                paint.textAlign = Paint.Align.CENTER
+                canvas.drawText("Sin datos de combustible", width / 2f, height / 2f, paint)
+                return
+            }
+            if (data.size == 1) {
+                // Solo un punto
+                paint.color = dotColor
+                canvas.drawCircle(width / 2f, height / 2f, 15f, paint)
+                paint.color = textColor
+                paint.textSize = 30f
+                paint.textAlign = Paint.Align.CENTER
+                canvas.drawText("%.2f €".format(data[0].second), width / 2f, height / 2f - 40f, paint)
+                return
+            }
+
+            val paddingLeft = 80f
+            val paddingRight = 50f
+            val paddingTop = 80f
+            val paddingBottom = 100f
+            
+            val chartWidth = width - paddingLeft - paddingRight
+            val chartHeight = height - paddingTop - paddingBottom
+
+            val prices = data.map { it.second }
+            val maxPrice = prices.maxOrNull() ?: 0f
+            val minPrice = prices.minOrNull() ?: 0f
+            val range = if (maxPrice == minPrice) 1f else maxPrice - minPrice
+
+            // Dibujar línea base (suelo)
+            paint.color = Color.parseColor("#333333")
+            paint.strokeWidth = 3f
+            canvas.drawLine(paddingLeft, height - paddingBottom, width - paddingRight, height - paddingBottom, paint)
+
+            val points = mutableListOf<PointF>()
+            val stepX = chartWidth / (data.size - 1)
+
+            for (i in data.indices) {
+                val x = paddingLeft + (i * stepX)
+                // Normalizar Y (invertido, porque el 0 está arriba en Canvas)
+                val normalizedY = (data[i].second - minPrice) / range
+                val y = (height - paddingBottom) - (normalizedY * chartHeight)
+                points.add(PointF(x, y))
+            }
+
+            // Dibujar la línea
+            paint.color = lineColor
+            paint.strokeWidth = 6f
+            paint.style = Paint.Style.STROKE
+            val path = Path()
+            path.moveTo(points[0].x, points[0].y)
+            for (i in 1 until points.size) {
+                path.lineTo(points[i].x, points[i].y)
+            }
+            canvas.drawPath(path, paint)
+
+            // Dibujar puntos, valores y fechas
+            paint.style = Paint.Style.FILL
+            paint.textAlign = Paint.Align.CENTER
+            paint.textSize = 26f
+
+            for (i in points.indices) {
+                val pt = points[i]
+                
+                // Círculo del punto
+                paint.color = dotColor
+                canvas.drawCircle(pt.x, pt.y, 12f, paint)
+
+                // Texto del precio (encima del punto)
+                paint.color = textColor
+                canvas.drawText("%.2f".format(data[i].second), pt.x, pt.y - 30f, paint)
+
+                // Texto de la fecha (debajo de la línea base)
+                paint.color = Color.LTGRAY
+                paint.textSize = 22f
+                canvas.drawText(data[i].first, pt.x, height - paddingBottom + 40f, paint)
+                paint.textSize = 26f
+            }
+        }
+    }
+
+    // ==========================================
+    // PANTALLA ESTADÍSTICAS
     // ==========================================
     fun mostrarPantallaEstadisticas() {
         contentLayout.removeAllViews()
@@ -603,7 +778,6 @@ class MainActivity : Activity() {
         fun calcularStats(cocheSeleccionado: String) {
             statsLayout.removeAllViews()
             
-            // 1. Filtrado de repostajes para Consumo y Precio Medio
             val repostajes = listaGastos.filter { 
                 (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) &&
                 it.tipo == "Combustible" && it.litros.isNotEmpty() && it.km.isNotEmpty() 
@@ -654,9 +828,6 @@ class MainActivity : Activity() {
                 if (kmTotalesCombustible > 0) agregarTarjeta("Coste solo Gasolina/Km", "%.3f".format(totalImporte / kmTotalesCombustible), "€/km")
             }
 
-            // ==========================================
-            // LÓGICA FASE 2: COSTE REAL POR KM (TODOS LOS GASTOS)
-            // ==========================================
             val gastosCoche = listaGastos.filter { (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) }
             val gastosConKm = gastosCoche.filter { it.km.isNotEmpty() && it.km.toIntOrNull() != null }
 
@@ -674,7 +845,6 @@ class MainActivity : Activity() {
 
                     val costeRealKm = gastoTotalReal / kmTotalesReales
 
-                    // Tarjeta destacada para el Coste Real
                     val card = LinearLayout(this).apply {
                         orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40)
                         background = GradientDrawable().apply { setColor(Color.parseColor("#2A1A10")); setStroke(4, orangeColor); cornerRadius = 30f }
