@@ -19,13 +19,15 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
+import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : Activity() {
 
     val listaGastos = mutableListOf<Gasto>()
-    val listaCoches = mutableListOf("Coche Principal") 
+    val listaCoches = mutableListOf("Coche Principal")
     var colorIndex = 0
 
     val bgColor = Color.parseColor("#121212")
@@ -35,6 +37,10 @@ class MainActivity : Activity() {
     lateinit var rootLayout: FrameLayout
     lateinit var contentLayout: LinearLayout
 
+    // Variables temporales para el formulario
+    var uriSeleccionada: Uri? = null
+    var txtArchivoGlobal: TextView? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -43,7 +49,86 @@ class MainActivity : Activity() {
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         
         setContentView(rootLayout)
+        
+        cargarDatos() // Cargamos los datos nada más abrir la app
         mostrarPantallaPrincipal()
+    }
+
+    // ==========================================
+    // GUARDAR Y CARGAR DATOS (PERSISTENCIA)
+    // ==========================================
+    fun guardarDatos() {
+        try {
+            val jsonArray = JSONArray()
+            for (g in listaGastos) {
+                val obj = JSONObject()
+                obj.put("coche", g.coche)
+                obj.put("tipo", g.tipo)
+                obj.put("litros", g.litros)
+                obj.put("km", g.km)
+                obj.put("importe", g.importe)
+                obj.put("fecha", g.fecha)
+                obj.put("colorHex", g.colorHex)
+                obj.put("depositoLleno", g.depositoLleno)
+                obj.put("observaciones", g.observaciones)
+                obj.put("documentoUri", g.documentoUri ?: "")
+                jsonArray.put(obj)
+            }
+            openFileOutput("gastos.json", MODE_PRIVATE).use { stream ->
+                stream.write(jsonArray.toString().toByteArray())
+            }
+            
+            // Guardamos también la lista de coches personalizada
+            val cochesArray = JSONArray()
+            for (c in listaCoches) cochesArray.put(c)
+            openFileOutput("coches.json", MODE_PRIVATE).use { stream ->
+                stream.write(cochesArray.toString().toByteArray())
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun cargarDatos() {
+        try {
+            // Cargar lista de coches
+            if (fileExists("coches.json")) {
+                val jsonString = openFileInput("coches.json").bufferedReader().use { it.readText() }
+                val jsonArray = JSONArray(jsonString)
+                listaCoches.clear()
+                for (i in 0 until jsonArray.length()) {
+                    listaCoches.add(jsonArray.getString(i))
+                }
+            }
+
+            // Cargar gastos
+            if (fileExists("gastos.json")) {
+                val jsonString = openFileInput("gastos.json").bufferedReader().use { it.readText() }
+                val jsonArray = JSONArray(jsonString)
+                listaGastos.clear()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    listaGastos.add(
+                        Gasto(
+                            coche = obj.getString("coche"),
+                            tipo = obj.getString("tipo"),
+                            litros = obj.optString("litros", ""),
+                            km = obj.optString("km", ""),
+                            importe = obj.getString("importe"),
+                            fecha = obj.getString("fecha"),
+                            colorHex = obj.getString("colorHex"),
+                            depositoLleno = obj.optBoolean("depositoLleno", false),
+                            observaciones = obj.optString("observaciones", ""),
+                            documentoUri = obj.optString("documentoUri").takeIf { it.isNotEmpty() }
+                        )
+                    )
+                }
+                // Actualizamos el contador de colores para que no se repitan
+                colorIndex = listaGastos.size
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     // ==========================================
@@ -146,7 +231,7 @@ class MainActivity : Activity() {
                     layoutParams = lp
                 }
 
-                val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+                val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
                 val txtTitulo = TextView(this).apply {
                     text = "${g.coche} - ${g.tipo}"
                     setTextColor(Color.WHITE)
@@ -159,10 +244,9 @@ class MainActivity : Activity() {
                     setTextColor(Color.WHITE)
                     textSize = 20f
                     setTypeface(null, Typeface.BOLD)
-                    setPadding(0, 0, 20, 0) // Espacio para el botón de borrar
+                    setPadding(0, 0, 20, 0)
                 }
                 
-                // BOTÓN DE ELIMINAR (🗑️)
                 val btnDelete = TextView(this).apply {
                     text = "🗑️"
                     textSize = 20f
@@ -172,6 +256,7 @@ class MainActivity : Activity() {
                             .setMessage("¿Estás seguro de que quieres borrar este gasto?")
                             .setPositiveButton("Sí") { _, _ ->
                                 listaGastos.remove(g)
+                                guardarDatos() // Guardamos al borrar
                                 renderLista(searchBar.text.toString())
                             }
                             .setNegativeButton("No", null)
@@ -205,7 +290,6 @@ class MainActivity : Activity() {
                 card.addView(topRow)
                 card.addView(botRow)
 
-                // MOSTRAR OBSERVACIONES Y ARCHIVO ADJUNTO SI EXISTEN
                 if (g.observaciones.isNotEmpty()) {
                     val txtObs = TextView(this).apply {
                         text = "📝 ${g.observaciones}"
@@ -219,7 +303,7 @@ class MainActivity : Activity() {
                 if (g.documentoUri != null) {
                     val txtDoc = TextView(this).apply {
                         text = "📎 Ver documento adjunto"
-                        setTextColor(Color.parseColor("#FFD54F")) // Amarillo claro para que resalte
+                        setTextColor(Color.parseColor("#FFD54F"))
                         textSize = 14f
                         setPadding(0, 10, 0, 0)
                         setOnClickListener {
@@ -228,7 +312,7 @@ class MainActivity : Activity() {
                                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 startActivity(intent)
                             } catch (e: Exception) {
-                                Toast.makeText(this@MainActivity, "No hay app para abrir este archivo", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this@MainActivity, "No se puede abrir el archivo", Toast.LENGTH_SHORT).show()
                             }
                         }
                     }
@@ -281,15 +365,13 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // FORMULARIO NUEVO GASTO (CON OBSERVACIONES Y ADJUNTOS)
+    // FORMULARIO NUEVO GASTO
     // ==========================================
-    var uriSeleccionada: Uri? = null // Variable global temporal para el formulario
-
     fun mostrarFormularioNuevoGasto() {
         contentLayout.removeAllViews()
         rootLayout.removeAllViews()
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        uriSeleccionada = null // Reiniciamos al abrir el formulario
+        uriSeleccionada = null
 
         val scroll = ScrollView(this)
         val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 80, 50, 50) }
@@ -344,6 +426,7 @@ class MainActivity : Activity() {
                         }
                         if (listaCoches.isEmpty()) listaCoches.add("Coche Principal")
                         spinnerCoche.adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listaCoches)
+                        guardarDatos() // Guardamos la lista de coches modificada
                     }.setNegativeButton("Cancelar", null).show()
             }
         }
@@ -355,11 +438,9 @@ class MainActivity : Activity() {
         spinnerGasto.adapter = adapterGasto
         layout.addView(spinnerGasto)
 
-        // Campos generales
         val inputImporte = EditText(this).apply { hint = "Importe total (€)"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setTextColor(Color.WHITE) }
         layout.addView(inputImporte)
 
-        // --- CAMPOS ESPECÍFICOS DE COMBUSTIBLE ---
         val inputLitros = EditText(this).apply { hint = "Cantidad (Litros o kWh)"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setTextColor(Color.WHITE) }
         val inputKm = EditText(this).apply { hint = "Kilometraje actual (Km)"; inputType = InputType.TYPE_CLASS_NUMBER; setTextColor(Color.WHITE) }
         val checkLleno = CheckBox(this).apply {
@@ -371,7 +452,6 @@ class MainActivity : Activity() {
         layout.addView(checkLleno)
         layout.addView(inputKm)
 
-        // --- CAMPOS ESPECÍFICOS DE MANTENIMIENTO / OTROS ---
         val layoutExtras = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
         
         val inputObservaciones = EditText(this).apply { hint = "Observaciones (ej. Cambio de aceite)"; setTextColor(Color.WHITE) }
@@ -381,8 +461,11 @@ class MainActivity : Activity() {
             setBackgroundColor(Color.parseColor("#333333"))
             setTextColor(Color.WHITE)
             setOnClickListener {
-                val intent = Intent(Intent.ACTION_GET_CONTENT)
-                intent.type = "*/*" // Permite cualquier archivo (fotos, pdf, etc.)
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                }
                 startActivityForResult(intent, 300)
             }
         }
@@ -398,10 +481,8 @@ class MainActivity : Activity() {
         layoutExtras.addView(txtArchivoSeleccionado)
         layout.addView(layoutExtras)
 
-        // Guardamos la referencia al TextView para actualizarlo desde onActivityResult
         this.txtArchivoGlobal = txtArchivoSeleccionado
 
-        // LÓGICA DE VISIBILIDAD SEGÚN EL TIPO DE GASTO
         spinnerGasto.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 if (tipos[position] == "Combustible") {
@@ -412,7 +493,7 @@ class MainActivity : Activity() {
                 } else {
                     inputLitros.visibility = View.GONE
                     checkLleno.visibility = View.GONE
-                    inputKm.visibility = View.VISIBLE // Km también útil para mantenimiento
+                    inputKm.visibility = View.VISIBLE
                     layoutExtras.visibility = View.VISIBLE
                 }
             }
@@ -444,6 +525,7 @@ class MainActivity : Activity() {
                         documentoUri = uriSeleccionada?.toString()
                     ))
                     colorIndex++
+                    guardarDatos() // <--- GUARDAMOS AL AÑADIR
                     Toast.makeText(this@MainActivity, "Guardado", Toast.LENGTH_SHORT).show()
                     mostrarPantallaPrincipal()
                 } else {
@@ -453,8 +535,6 @@ class MainActivity : Activity() {
         }
         layout.addView(btnGuardar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 40, 0, 0) })
     }
-
-    var txtArchivoGlobal: TextView? = null
 
     // ==========================================
     // PANTALLA ESTADÍSTICAS
@@ -677,9 +757,10 @@ class MainActivity : Activity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         
-        // RESULTADO ADJUNTAR ARCHIVO
         if (requestCode == 300 && resultCode == RESULT_OK && data?.data != null) {
             uriSeleccionada = data.data
+            // Permiso persistente para que el archivo siga accesible tras reiniciar la app
+            contentResolver.takePersistableUriPermission(uriSeleccionada!!, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             txtArchivoGlobal?.text = "✅ Archivo seleccionado"
             return
         }
@@ -707,6 +788,7 @@ class MainActivity : Activity() {
                                 if (!listaCoches.contains(p[0])) listaCoches.add(p[0])
                             }
                         }
+                        guardarDatos() // <--- GUARDAMOS AL IMPORTAR
                         mostrarPantallaPrincipal()
                     }
                     Toast.makeText(this, "¡Importado!", Toast.LENGTH_SHORT).show()
