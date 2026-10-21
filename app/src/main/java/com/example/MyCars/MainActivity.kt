@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -13,6 +14,7 @@ import android.graphics.PointF
 import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
@@ -34,6 +36,10 @@ class MainActivity : Activity() {
     val listaGastos = mutableListOf<Gasto>()
     val listaCoches = mutableListOf("Coche Principal")
     val listaRecordatorios = mutableListOf<Recordatorio>()
+    
+    // LISTA PARA GUARDAR LOS GASTOS SELECCIONADOS
+    val seleccionados = mutableSetOf<Gasto>()
+    
     var colorIndex = 0
 
     val bgColor = Color.parseColor("#121212")
@@ -177,6 +183,16 @@ class MainActivity : Activity() {
                 }
 
                 val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+                
+                // --- CHECKBOX PARA SELECCIONAR ---
+                val checkBox = CheckBox(this).apply {
+                    isChecked = seleccionados.contains(g)
+                    buttonTintList = ColorStateList.valueOf(Color.WHITE)
+                    setOnCheckedChangeListener { _, isChecked ->
+                        if (isChecked) seleccionados.add(g) else seleccionados.remove(g)
+                    }
+                }
+                
                 val txtTitulo = TextView(this).apply {
                     text = "${g.coche} - ${g.tipo}"; setTextColor(Color.WHITE); textSize = 18f; setTypeface(null, Typeface.BOLD)
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
@@ -187,11 +203,16 @@ class MainActivity : Activity() {
                     text = "🗑️"; textSize = 20f
                     setOnClickListener {
                         AlertDialog.Builder(this@MainActivity).setTitle("Eliminar").setMessage("¿Borrar este gasto?")
-                            .setPositiveButton("Sí") { _, _ -> listaGastos.remove(g); guardarDatos(); renderLista(searchBar.text.toString()) }
+                            .setPositiveButton("Sí") { _, _ -> 
+                                listaGastos.remove(g)
+                                seleccionados.remove(g) // Lo quitamos también de seleccionados
+                                guardarDatos(); renderLista(searchBar.text.toString()) 
+                            }
                             .setNegativeButton("No", null).show()
                     }
                 }
 
+                topRow.addView(checkBox) // Añadimos el checkbox al principio
                 topRow.addView(txtTitulo); topRow.addView(txtImporte); topRow.addView(btnDelete)
 
                 val botRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 10, 0, 0) }
@@ -253,6 +274,7 @@ class MainActivity : Activity() {
         popup.menu.add("Importar desde CSV")
         popup.menu.add("☁️ Copia de Seguridad (JSON)")
         popup.menu.add("☁️ Restaurar Copia (JSON)")
+        popup.menu.add("📄 Generar PDF (Seleccionados)")
         
         popup.setOnMenuItemClickListener { item ->
             when (item.title) {
@@ -260,10 +282,28 @@ class MainActivity : Activity() {
                 "Importar desde CSV" -> { importarCSV(); true }
                 "☁️ Copia de Seguridad (JSON)" -> { exportarJSON(); true }
                 "☁️ Restaurar Copia (JSON)" -> { importarJSON(); true }
+                "📄 Generar PDF (Seleccionados)" -> { generarPDF(); true }
                 else -> false
             }
         }
         popup.show()
+    }
+
+    // ==========================================
+    // GENERAR PDF
+    // ==========================================
+    fun generarPDF() {
+        if (seleccionados.isEmpty()) {
+            Toast.makeText(this, "Primero marca la casilla de los gastos que quieras incluir", Toast.LENGTH_LONG).show()
+            return
+        }
+        
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/pdf"
+            putExtra(Intent.EXTRA_TITLE, "Reporte_Gastos_MyCars.pdf")
+        }
+        startActivityForResult(intent, 700)
     }
 
     // ==========================================
@@ -321,7 +361,7 @@ class MainActivity : Activity() {
 
         val inputLitros = EditText(this).apply { hint = "Cantidad (Litros o kWh)"; inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL; setTextColor(Color.WHITE) }
         val inputKm = EditText(this).apply { hint = "Kilometraje actual (Km)"; inputType = InputType.TYPE_CLASS_NUMBER; setTextColor(Color.WHITE) }
-        val checkLleno = CheckBox(this).apply { text = "Depósito lleno"; setTextColor(Color.WHITE); buttonTintList = android.content.res.ColorStateList.valueOf(orangeColor) }
+        val checkLleno = CheckBox(this).apply { text = "Depósito lleno"; setTextColor(Color.WHITE); buttonTintList = ColorStateList.valueOf(orangeColor) }
         
         val txtPrecioLitro = TextView(this).apply { setTextColor(orangeColor); textSize = 16f; setTypeface(null, Typeface.BOLD); setPadding(0, 10, 0, 20) }
 
@@ -333,29 +373,18 @@ class MainActivity : Activity() {
         val btnCamara = Button(this).apply {
             text = "📷 Hacer foto a la factura"; setBackgroundColor(Color.parseColor("#333333")); setTextColor(Color.WHITE)
             setOnClickListener {
-                // COMPROBAMOS PERMISOS ANTES DE ABRIR LA CÁMARA
                 if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                    // Si no hay permiso, lo pedimos
                     requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 101)
                     return@setOnClickListener
                 }
-
-                // Si ya tenemos permiso, abrimos la cámara
                 val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
                 val ficheroFoto = File(getExternalFilesDir(null), "factura_${System.currentTimeMillis()}.jpg")
                 try {
-                    fotoUri = androidx.core.content.FileProvider.getUriForFile(
-                        this@MainActivity,
-                        "$packageName.fileprovider", 
-                        ficheroFoto
-                    )
+                    fotoUri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "$packageName.fileprovider", ficheroFoto)
                     cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, fotoUri)
                     startActivityForResult(cameraIntent, 400)
                 } catch (e: Exception) { 
-                    AlertDialog.Builder(this@MainActivity)
-                        .setTitle("Error de cámara")
-                        .setMessage("Detalle del error:\n${e.message}")
-                        .setPositiveButton("OK", null).show()
+                    AlertDialog.Builder(this@MainActivity).setTitle("Error cámara").setMessage("Detalle: ${e.message}").setPositiveButton("OK", null).show()
                 }
             }
         }
@@ -417,14 +446,13 @@ class MainActivity : Activity() {
         layout.addView(btnGuardar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 40, 0, 0) })
     }
 
-    // RESULTADO DE LA PETICIÓN DE PERMISOS
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 101) {
             if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this, "Permiso concedido. Pulsa de nuevo para hacer la foto.", Toast.LENGTH_LONG).show()
             } else {
-                Toast.makeText(this, "Permiso de cámara denegado. Ve a los ajustes del móvil para activarlo.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Permiso denegado. Ve a los ajustes.", Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -828,6 +856,85 @@ class MainActivity : Activity() {
 
         if (resultCode == RESULT_OK) {
             val uri: Uri? = data?.data
+            
+            if (requestCode == 700 && uri != null) {
+                // GENERAR EL PDF
+                try {
+                    val pdfDocument = PdfDocument()
+                    val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create() // Tamaño A4
+                    var page = pdfDocument.startPage(pageInfo)
+                    var canvas = page.canvas
+                    
+                    val paint = Paint()
+                    var y = 50f
+                    
+                    // Título
+                    paint.textSize = 22f
+                    paint.isFakeBoldText = true
+                    canvas.drawText("Reporte de Gastos - MyCars", 40f, y, paint)
+                    y += 30f
+                    
+                    paint.textSize = 12f
+                    paint.isFakeBoldText = false
+                    
+                    // Cabecera de la tabla
+                    canvas.drawText("Fecha", 40f, y, paint)
+                    canvas.drawText("Coche", 120f, y, paint)
+                    canvas.drawText("Tipo", 220f, y, paint)
+                    canvas.drawText("Importe", 350f, y, paint)
+                    canvas.drawText("Km", 450f, y, paint)
+                    y += 15f
+                    canvas.drawLine(40f, y, 550f, y, paint)
+                    y += 20f
+                    
+                    var totalImporte = 0.0
+                    
+                    for (gasto in seleccionados) {
+                        if (y > 800f) {
+                            pdfDocument.finishPage(page)
+                            page = pdfDocument.startPage(pageInfo)
+                            canvas = page.canvas
+                            y = 50f
+                        }
+                        
+                        canvas.drawText(gasto.fecha, 40f, y, paint)
+                        canvas.drawText(gasto.coche, 120f, y, paint)
+                        canvas.drawText(gasto.tipo, 220f, y, paint)
+                        canvas.drawText("${gasto.importe} €", 350f, y, paint)
+                        canvas.drawText(gasto.km, 450f, y, paint)
+                        y += 20f
+                        
+                        if (gasto.observaciones.isNotEmpty()) {
+                            paint.color = Color.GRAY
+                            canvas.drawText("  Obs: ${gasto.observaciones}", 120f, y, paint)
+                            paint.color = Color.BLACK
+                            y += 20f
+                        }
+                        
+                        totalImporte += gasto.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
+                        y += 5f // Espacio entre items
+                    }
+                    
+                    // Total final
+                    y += 10f
+                    paint.isFakeBoldText = true
+                    canvas.drawLine(40f, y - 5f, 550f, y - 5f, paint)
+                    canvas.drawText("TOTAL:", 350f, y + 10f, paint)
+                    canvas.drawText("%.2f €".format(totalImporte), 450f, y + 10f, paint)
+                    
+                    pdfDocument.finishPage(page)
+                    
+                    contentResolver.openOutputStream(uri)?.use { out ->
+                        pdfDocument.writeTo(out)
+                    }
+                    pdfDocument.close()
+                    Toast.makeText(this, "¡PDF generado con éxito!", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Error al generar PDF: ${e.message}", Toast.LENGTH_LONG).show()
+                }
+                return
+            }
+
             if (requestCode == 100 && uri != null) { // CSV EXPORT
                 try {
                     contentResolver.openOutputStream(uri)?.use { out ->
