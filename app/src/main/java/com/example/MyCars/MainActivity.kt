@@ -13,7 +13,7 @@ class MainActivity : AppCompatActivity() {
         // Creamos el diseño directamente en código
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            padding = 60
+            setPadding(60, 60, 60, 60)
         }
 
         val title = TextView(this).apply {
