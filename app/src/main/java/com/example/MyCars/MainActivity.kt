@@ -43,7 +43,6 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // 1. OCULTAR LA BARRA SUPERIOR DEL SISTEMA (La que pone MyCars en gris)
         actionBar?.hide()
 
         rootLayout = FrameLayout(this).apply { setBackgroundColor(bgColor) }
@@ -141,15 +140,15 @@ class MainActivity : Activity() {
 
         val header = RelativeLayout(this).apply { setPadding(50, 80, 50, 20) }
         
-        // 2. TÍTULO CENTRADO Y EN NARANJA (Sin subtítulo)
+        // TÍTULO ALINEADO A LA IZQUIERDA
         val title = TextView(this).apply {
             text = "My Cars"
             setTextColor(orangeColor)
             textSize = 32f
             setTypeface(null, Typeface.BOLD)
-            // Centramos el título horizontalmente
             val params = RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT)
-            params.addRule(RelativeLayout.CENTER_HORIZONTAL)
+            params.addRule(RelativeLayout.ALIGN_PARENT_LEFT) // Lo pegamos a la izquierda
+            params.addRule(RelativeLayout.CENTER_VERTICAL)   // Lo centramos con los iconos
             layoutParams = params
         }
         header.addView(title)
