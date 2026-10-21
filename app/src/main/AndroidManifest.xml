@@ -17,10 +17,10 @@
             </intent-filter>
         </activity>
 
-        <!-- PROVEEDOR PARA LA CÁMARA -->
+        <!-- PROVEEDOR PARA LA CÁMARA (Usa ${applicationId} para evitar errores) -->
         <provider
             android:name="androidx.core.content.FileProvider"
-            android:authorities="com.example.MyCars.fileprovider"
+            android:authorities="${applicationId}.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
