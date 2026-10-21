@@ -70,42 +70,25 @@ class MainActivity : Activity() {
             val jsonArray = JSONArray()
             for (g in listaGastos) {
                 val obj = JSONObject()
-                obj.put("coche", g.coche)
-                obj.put("tipo", g.tipo)
-                obj.put("litros", g.litros)
-                obj.put("km", g.km)
-                obj.put("importe", g.importe)
-                obj.put("fecha", g.fecha)
-                obj.put("colorHex", g.colorHex)
-                obj.put("depositoLleno", g.depositoLleno)
-                obj.put("observaciones", g.observaciones)
-                obj.put("documentoUri", g.documentoUri ?: "")
+                obj.put("coche", g.coche); obj.put("tipo", g.tipo); obj.put("litros", g.litros)
+                obj.put("km", g.km); obj.put("importe", g.importe); obj.put("fecha", g.fecha)
+                obj.put("colorHex", g.colorHex); obj.put("depositoLleno", g.depositoLleno)
+                obj.put("observaciones", g.observaciones); obj.put("documentoUri", g.documentoUri ?: "")
                 jsonArray.put(obj)
             }
-            openFileOutput("gastos.json", MODE_PRIVATE).use { stream ->
-                stream.write(jsonArray.toString().toByteArray())
-            }
+            openFileOutput("gastos.json", MODE_PRIVATE).use { stream -> stream.write(jsonArray.toString().toByteArray()) }
             
             val cochesArray = JSONArray()
             for (c in listaCoches) cochesArray.put(c)
-            openFileOutput("coches.json", MODE_PRIVATE).use { stream ->
-                stream.write(cochesArray.toString().toByteArray())
-            }
+            openFileOutput("coches.json", MODE_PRIVATE).use { stream -> stream.write(cochesArray.toString().toByteArray()) }
 
             val recArray = JSONArray()
             for (r in listaRecordatorios) {
-                val obj = JSONObject()
-                obj.put("titulo", r.titulo)
-                obj.put("fecha", r.fecha)
-                obj.put("coche", r.coche)
+                val obj = JSONObject(); obj.put("titulo", r.titulo); obj.put("fecha", r.fecha); obj.put("coche", r.coche)
                 recArray.put(obj)
             }
-            openFileOutput("recordatorios.json", MODE_PRIVATE).use { stream ->
-                stream.write(recArray.toString().toByteArray())
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+            openFileOutput("recordatorios.json", MODE_PRIVATE).use { stream -> stream.write(recArray.toString().toByteArray()) }
+        } catch (e: Exception) { e.printStackTrace() }
     }
 
     fun cargarDatos() {
@@ -113,9 +96,7 @@ class MainActivity : Activity() {
             val jsonString = openFileInput("coches.json").bufferedReader().use { it.readText() }
             val jsonArray = JSONArray(jsonString)
             listaCoches.clear()
-            for (i in 0 until jsonArray.length()) {
-                listaCoches.add(jsonArray.getString(i))
-            }
+            for (i in 0 until jsonArray.length()) { listaCoches.add(jsonArray.getString(i)) }
         } catch (e: java.io.FileNotFoundException) {} catch (e: Exception) { e.printStackTrace() }
 
         try {
@@ -124,15 +105,7 @@ class MainActivity : Activity() {
             listaGastos.clear()
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
-                listaGastos.add(
-                    Gasto(
-                        coche = obj.getString("coche"), tipo = obj.getString("tipo"),
-                        litros = obj.optString("litros", ""), km = obj.optString("km", ""),
-                        importe = obj.getString("importe"), fecha = obj.getString("fecha"),
-                        colorHex = obj.getString("colorHex"), depositoLleno = obj.optBoolean("depositoLleno", false),
-                        observaciones = obj.optString("observaciones", ""), documentoUri = obj.optString("documentoUri").takeIf { it.isNotEmpty() }
-                    )
-                )
+                listaGastos.add(Gasto(obj.getString("coche"), obj.getString("tipo"), obj.optString("litros", ""), obj.optString("km", ""), obj.getString("importe"), obj.getString("fecha"), obj.getString("colorHex"), obj.optBoolean("depositoLleno", false), obj.optString("observaciones", ""), obj.optString("documentoUri").takeIf { it.isNotEmpty() }))
             }
             colorIndex = listaGastos.size
         } catch (e: java.io.FileNotFoundException) {} catch (e: Exception) { e.printStackTrace() }
@@ -152,93 +125,44 @@ class MainActivity : Activity() {
     // PANTALLA PRINCIPAL
     // ==========================================
     fun mostrarPantallaPrincipal() {
-        contentLayout.removeAllViews()
-        rootLayout.removeAllViews()
+        contentLayout.removeAllViews(); rootLayout.removeAllViews()
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
 
         val header = RelativeLayout(this).apply { setPadding(50, 80, 50, 20) }
         
         val title = TextView(this).apply {
-            text = "My Cars"
-            setTextColor(orangeColor)
-            textSize = 32f
-            setTypeface(null, Typeface.BOLD)
+            text = "My Cars"; setTextColor(orangeColor); textSize = 32f; setTypeface(null, Typeface.BOLD)
             val params = RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT)
-            params.addRule(RelativeLayout.ALIGN_PARENT_LEFT)
-            params.addRule(RelativeLayout.CENTER_VERTICAL)
-            layoutParams = params
+            params.addRule(RelativeLayout.ALIGN_PARENT_LEFT); params.addRule(RelativeLayout.CENTER_VERTICAL); layoutParams = params
         }
         header.addView(title)
 
         val iconsLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             val params = RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT)
-            params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT)
-            layoutParams = params
+            params.addRule(RelativeLayout.ALIGN_PARENT_RIGHT); layoutParams = params
         }
 
-        val iconCalendar = TextView(this).apply {
-            text = "📅"
-            textSize = 24f
-            setPadding(0, 0, 30, 0)
-            setOnClickListener { mostrarPantallaRecordatorios() }
-        }
+        val iconCalendar = TextView(this).apply { text = "📅"; textSize = 24f; setPadding(0, 0, 30, 0); setOnClickListener { mostrarPantallaRecordatorios() } }
+        val iconLineChart = TextView(this).apply { text = "📉"; textSize = 24f; setPadding(0, 0, 30, 0); setOnClickListener { mostrarPantallaEvolucion() } }
+        val iconStats = TextView(this).apply { text = "📈"; textSize = 24f; setPadding(0, 0, 30, 0); setOnClickListener { mostrarPantallaEstadisticas() } }
+        val iconChart = TextView(this).apply { text = "📊"; textSize = 24f; setPadding(0, 0, 30, 0); setOnClickListener { mostrarPantallaResumen() } }
+        val iconMenu = TextView(this).apply { text = "⋮"; setTextColor(Color.WHITE); textSize = 28f; setPadding(0, 0, 0, 15); setOnClickListener { v -> showMenu(v) } }
 
-        val iconLineChart = TextView(this).apply {
-            text = "📉"
-            textSize = 24f
-            setPadding(0, 0, 30, 0)
-            setOnClickListener { mostrarPantallaEvolucion() }
-        }
-
-        val iconStats = TextView(this).apply {
-            text = "📈"
-            textSize = 24f
-            setPadding(0, 0, 30, 0)
-            setOnClickListener { mostrarPantallaEstadisticas() }
-        }
-
-        val iconChart = TextView(this).apply {
-            text = "📊"
-            textSize = 24f
-            setPadding(0, 0, 30, 0)
-            setOnClickListener { mostrarPantallaResumen() }
-        }
-
-        val iconMenu = TextView(this).apply {
-            text = "⋮"
-            setTextColor(Color.WHITE)
-            textSize = 28f
-            setPadding(0, 0, 0, 15)
-            setOnClickListener { v -> showMenu(v) }
-        }
-
-        iconsLayout.addView(iconCalendar)
-        iconsLayout.addView(iconLineChart)
-        iconsLayout.addView(iconStats)
-        iconsLayout.addView(iconChart)
-        iconsLayout.addView(iconMenu)
-        header.addView(iconsLayout)
-        contentLayout.addView(header)
+        iconsLayout.addView(iconCalendar); iconsLayout.addView(iconLineChart); iconsLayout.addView(iconStats); iconsLayout.addView(iconChart); iconsLayout.addView(iconMenu)
+        header.addView(iconsLayout); contentLayout.addView(header)
 
         val searchBar = EditText(this).apply {
-            hint = "🔍  Buscar..."
-            setHintTextColor(Color.GRAY)
-            setTextColor(Color.WHITE)
-            textSize = 16f
-            setPadding(40, 25, 40, 25)
+            hint = "🔍  Buscar..."; setHintTextColor(Color.GRAY); setTextColor(Color.WHITE); textSize = 16f; setPadding(40, 25, 40, 25)
             background = GradientDrawable().apply { setColor(Color.parseColor("#222222")); cornerRadius = 40f }
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
-            lp.setMargins(50, 0, 50, 30)
-            layoutParams = lp
+            lp.setMargins(50, 0, 50, 30); layoutParams = lp
         }
         contentLayout.addView(searchBar)
 
         val scrollView = ScrollView(this)
         val listLayout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(50, 0, 50, 150) }
-        scrollView.addView(listLayout)
-        contentLayout.addView(scrollView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        scrollView.addView(listLayout); contentLayout.addView(scrollView, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
 
         fun renderLista(filtro: String = "") {
             listLayout.removeAllViews()
@@ -246,8 +170,7 @@ class MainActivity : Activity() {
             
             for (g in filtrados.reversed()) {
                 val card = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    setPadding(40, 40, 40, 40)
+                    orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40)
                     background = GradientDrawable().apply { setColor(Color.parseColor(g.colorHex)); cornerRadius = 40f }
                     val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
                     lp.setMargins(0, 0, 0, 30); layoutParams = lp
@@ -255,22 +178,17 @@ class MainActivity : Activity() {
 
                 val topRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
                 val txtTitulo = TextView(this).apply {
-                    text = "${g.coche} - ${g.tipo}"
-                    setTextColor(Color.WHITE); textSize = 18f; setTypeface(null, Typeface.BOLD)
+                    text = "${g.coche} - ${g.tipo}"; setTextColor(Color.WHITE); textSize = 18f; setTypeface(null, Typeface.BOLD)
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 }
-                val txtImporte = TextView(this).apply {
-                    text = "${g.importe} €"
-                    setTextColor(Color.WHITE); textSize = 20f; setTypeface(null, Typeface.BOLD); setPadding(0, 0, 20, 0)
-                }
+                val txtImporte = TextView(this).apply { text = "${g.importe} €"; setTextColor(Color.WHITE); textSize = 20f; setTypeface(null, Typeface.BOLD); setPadding(0, 0, 20, 0) }
                 
                 val btnDelete = TextView(this).apply {
                     text = "🗑️"; textSize = 20f
                     setOnClickListener {
                         AlertDialog.Builder(this@MainActivity).setTitle("Eliminar").setMessage("¿Borrar este gasto?")
-                            .setPositiveButton("Sí") { _, _ ->
-                                listaGastos.remove(g); guardarDatos(); renderLista(searchBar.text.toString())
-                            }.setNegativeButton("No", null).show()
+                            .setPositiveButton("Sí") { _, _ -> listaGastos.remove(g); guardarDatos(); renderLista(searchBar.text.toString()) }
+                            .setNegativeButton("No", null).show()
                     }
                 }
 
@@ -415,18 +333,29 @@ class MainActivity : Activity() {
         val btnCamara = Button(this).apply {
             text = "📷 Hacer foto a la factura"; setBackgroundColor(Color.parseColor("#333333")); setTextColor(Color.WHITE)
             setOnClickListener {
+                // COMPROBAMOS PERMISOS ANTES DE ABRIR LA CÁMARA
+                if (checkSelfPermission(android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    // Si no hay permiso, lo pedimos
+                    requestPermissions(arrayOf(android.Manifest.permission.CAMERA), 101)
+                    return@setOnClickListener
+                }
+
+                // Si ya tenemos permiso, abrimos la cámara
+                val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
                 val ficheroFoto = File(getExternalFilesDir(null), "factura_${System.currentTimeMillis()}.jpg")
                 try {
-                    // AQUÍ ESTÁ EL TRUCO PARA QUE NO FALLE NUNCA
                     fotoUri = androidx.core.content.FileProvider.getUriForFile(
                         this@MainActivity,
                         "$packageName.fileprovider", 
                         ficheroFoto
                     )
-                    val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply { putExtra(MediaStore.EXTRA_OUTPUT, fotoUri) }
-                    startActivityForResult(intent, 400)
+                    cameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, fotoUri)
+                    startActivityForResult(cameraIntent, 400)
                 } catch (e: Exception) { 
-                    Toast.makeText(this@MainActivity, "Error cámara: ${e.message}", Toast.LENGTH_LONG).show() 
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Error de cámara")
+                        .setMessage("Detalle del error:\n${e.message}")
+                        .setPositiveButton("OK", null).show()
                 }
             }
         }
@@ -488,8 +417,20 @@ class MainActivity : Activity() {
         layout.addView(btnGuardar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 40, 0, 0) })
     }
 
+    // RESULTADO DE LA PETICIÓN DE PERMISOS
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 101) {
+            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Permiso concedido. Pulsa de nuevo para hacer la foto.", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "Permiso de cámara denegado. Ve a los ajustes del móvil para activarlo.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     // ==========================================
-    // PANTALLA RECORDATORIOS (ITV, SEGURO)
+    // PANTALLA RECORDATORIOS
     // ==========================================
     fun mostrarPantallaRecordatorios() {
         contentLayout.removeAllViews(); rootLayout.removeAllViews()
@@ -549,9 +490,7 @@ class MainActivity : Activity() {
             
             val btnDel = TextView(this).apply { 
                 text = "🗑️"; textSize = 20f; gravity = Gravity.CENTER_VERTICAL
-                setOnClickListener {
-                    listaRecordatorios.remove(r); guardarDatos(); mostrarPantallaRecordatorios()
-                }
+                setOnClickListener { listaRecordatorios.remove(r); guardarDatos(); mostrarPantallaRecordatorios() }
             }
             card.addView(tvInfo); card.addView(btnDel)
             layout.addView(card)
