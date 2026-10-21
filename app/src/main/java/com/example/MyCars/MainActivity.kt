@@ -25,7 +25,6 @@ import java.util.*
 class MainActivity : Activity() {
 
     val listaGastos = mutableListOf<Gasto>()
-    // Aquí definimos los coches por defecto
     val listaCoches = mutableListOf("Coche A", "Coche B") 
     var colorIndex = 0
 
@@ -250,19 +249,16 @@ class MainActivity : Activity() {
         header.addView(btnBack); header.addView(title)
         layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
 
-        // SELECTOR DE COCHE
         val spinnerCoche = Spinner(this)
         val adapterCoche = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, listaCoches)
         spinnerCoche.adapter = adapterCoche
         layout.addView(spinnerCoche)
 
-        // BOTÓN PARA EDITAR LOS NOMBRES DE LOS COCHES
         val btnEditCoches = Button(this).apply {
             text = "✏️ Editar nombres de coches"
             setBackgroundColor(Color.TRANSPARENT)
             setTextColor(orangeColor)
             setOnClickListener {
-                // Creamos un diseño para el diálogo
                 val dialogLayout = LinearLayout(this@MainActivity).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(50, 30, 50, 30)
@@ -271,44 +267,37 @@ class MainActivity : Activity() {
                 scrollDialog.addView(dialogLayout)
                 val editTexts = mutableListOf<EditText>()
 
-                // Función para añadir una caja de texto al diálogo
                 fun agregarCampo(nombre: String) {
                     val et = EditText(this@MainActivity).apply {
                         setText(nombre)
-                        setTextColor(Color.BLACK)
+                        setTextColor(Color.WHITE) // SOLUCIÓN: Letra blanca
+                        setHintTextColor(Color.GRAY)
                         hint = "Nombre del coche"
                     }
                     editTexts.add(et)
                     dialogLayout.addView(et)
                 }
 
-                // Cargamos los coches actuales
                 listaCoches.forEach { agregarCampo(it) }
 
-                // Botón para añadir más coches si se quiere
                 val btnAddMore = Button(this@MainActivity).apply {
                     text = "+ Añadir otro coche"
                     setOnClickListener { agregarCampo("") }
                 }
                 dialogLayout.addView(btnAddMore)
 
-                // Mostrar el diálogo
                 AlertDialog.Builder(this@MainActivity)
                     .setTitle("Configurar nombres")
                     .setView(scrollDialog)
                     .setPositiveButton("Guardar") { _, _ ->
                         listaCoches.clear()
-                        // Leemos lo que haya escrito el usuario
                         for (et in editTexts) {
                             val nombre = et.text.toString().trim()
                             if (nombre.isNotEmpty() && !listaCoches.contains(nombre)) {
                                 listaCoches.add(nombre)
                             }
                         }
-                        // Si borra todo, ponemos uno por defecto para que no falle
                         if (listaCoches.isEmpty()) listaCoches.add("Coche Principal")
-                        
-                        // Actualizamos el desplegable inmediatamente
                         spinnerCoche.adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, listaCoches)
                     }
                     .setNegativeButton("Cancelar", null)
@@ -317,7 +306,6 @@ class MainActivity : Activity() {
         }
         layout.addView(btnEditCoches)
 
-        // RESTO DEL FORMULARIO
         val spinnerGasto = Spinner(this)
         val tipos = arrayOf("Combustible", "Mantenimiento", "Otros")
         val adapterGasto = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, tipos)
@@ -400,7 +388,15 @@ class MainActivity : Activity() {
         layout.addView(txtTotal)
 
         val pieChart = PieChartView(this)
-        layout.addView(pieChart, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 600))
+        layout.addView(pieChart, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 500))
+
+        // --- LEYENDA DEL GRÁFICO ---
+        val legendLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(50, 20, 50, 20)
+            gravity = Gravity.CENTER_HORIZONTAL
+        }
+        layout.addView(legendLayout)
 
         spinnerResumen.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
@@ -408,13 +404,44 @@ class MainActivity : Activity() {
                 val filtrados = if (seleccion == "Todos los coches") listaGastos else listaGastos.filter { it.coche == seleccion }
                 var total = 0.0
                 val datosTarta = mutableMapOf<String, Float>()
+                
                 for (g in filtrados) {
                     val imp = g.importe.toDoubleOrNull() ?: 0.0
                     total += imp
                     datosTarta[g.tipo] = (datosTarta[g.tipo] ?: 0f) + imp.toFloat()
                 }
+                
                 txtTotal.text = "Gasto Total: %.2f €".format(total)
                 pieChart.setData(datosTarta)
+
+                // Actualizar la leyenda
+                legendLayout.removeAllViews()
+                var colorIdx = 0
+                for ((tipo, valor) in datosTarta) {
+                    if (valor > 0) {
+                        val row = LinearLayout(this@MainActivity).apply {
+                            orientation = LinearLayout.HORIZONTAL
+                            gravity = Gravity.CENTER_VERTICAL
+                            setPadding(0, 10, 0, 10)
+                        }
+                        val colorBox = View(this@MainActivity).apply {
+                            layoutParams = LinearLayout.LayoutParams(35, 35)
+                            background = GradientDrawable().apply {
+                                setColor(Color.parseColor(cardColors[colorIdx % cardColors.size]))
+                                cornerRadius = 5f
+                            }
+                        }
+                        val text = TextView(this@MainActivity).apply {
+                            text = "  $tipo: %.2f €".format(valor)
+                            setTextColor(Color.WHITE)
+                            textSize = 16f
+                        }
+                        row.addView(colorBox)
+                        row.addView(text)
+                        legendLayout.addView(row)
+                        colorIdx++
+                    }
+                }
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
