@@ -140,20 +140,18 @@ class MainActivity : Activity() {
 
         val header = RelativeLayout(this).apply { setPadding(50, 80, 50, 20) }
         
-        // TÍTULO ALINEADO A LA IZQUIERDA
         val title = TextView(this).apply {
             text = "My Cars"
             setTextColor(orangeColor)
             textSize = 32f
             setTypeface(null, Typeface.BOLD)
             val params = RelativeLayout.LayoutParams(RelativeLayout.LayoutParams.WRAP_CONTENT, RelativeLayout.LayoutParams.WRAP_CONTENT)
-            params.addRule(RelativeLayout.ALIGN_PARENT_LEFT) // Lo pegamos a la izquierda
-            params.addRule(RelativeLayout.CENTER_VERTICAL)   // Lo centramos con los iconos
+            params.addRule(RelativeLayout.ALIGN_PARENT_LEFT)
+            params.addRule(RelativeLayout.CENTER_VERTICAL)
             layoutParams = params
         }
         header.addView(title)
 
-        // ICONOS A LA DERECHA
         val iconsLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -362,7 +360,7 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // FORMULARIO NUEVO GASTO
+    // FORMULARIO NUEVO GASTO (CON CALCULADORA)
     // ==========================================
     fun mostrarFormularioNuevoGasto() {
         contentLayout.removeAllViews()
@@ -445,9 +443,19 @@ class MainActivity : Activity() {
             setTextColor(Color.WHITE)
             buttonTintList = android.content.res.ColorStateList.valueOf(orangeColor)
         }
+        
+        // TEXTO PARA LA CALCULADORA RÁPIDA
+        val txtPrecioLitro = TextView(this).apply {
+            setTextColor(orangeColor)
+            textSize = 16f
+            setTypeface(null, Typeface.BOLD)
+            setPadding(0, 10, 0, 20)
+        }
+
         layout.addView(inputLitros)
         layout.addView(checkLleno)
         layout.addView(inputKm)
+        layout.addView(txtPrecioLitro) // Lo añadimos justo debajo de los km
 
         val layoutExtras = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; visibility = View.GONE }
         
@@ -480,17 +488,39 @@ class MainActivity : Activity() {
 
         this.txtArchivoGlobal = txtArchivoSeleccionado
 
+        // LÓGICA DE LA CALCULADORA (Punto 8)
+        val watcherCalculadora = object : TextWatcher {
+            override fun afterTextChanged(s: Editable?) {
+                val impStr = inputImporte.text.toString().replace(",", ".")
+                val litStr = inputLitros.text.toString().replace(",", ".")
+                val imp = impStr.toDoubleOrNull() ?: 0.0
+                val lit = litStr.toDoubleOrNull() ?: 0.0
+                
+                if (lit > 0.0 && imp > 0.0) {
+                    txtPrecioLitro.text = "👉 Precio: %.3f €/L".format(imp / lit)
+                } else {
+                    txtPrecioLitro.text = ""
+                }
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        }
+        inputImporte.addTextChangedListener(watcherCalculadora)
+        inputLitros.addTextChangedListener(watcherCalculadora)
+
         spinnerGasto.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 if (tipos[position] == "Combustible") {
                     inputLitros.visibility = View.VISIBLE
                     checkLleno.visibility = View.VISIBLE
                     inputKm.visibility = View.VISIBLE
+                    txtPrecioLitro.visibility = View.VISIBLE
                     layoutExtras.visibility = View.GONE
                 } else {
                     inputLitros.visibility = View.GONE
                     checkLleno.visibility = View.GONE
                     inputKm.visibility = View.VISIBLE
+                    txtPrecioLitro.visibility = View.GONE
                     layoutExtras.visibility = View.VISIBLE
                 }
             }
@@ -505,14 +535,16 @@ class MainActivity : Activity() {
             setPadding(0, 30, 0, 30)
             setOnClickListener {
                 val coche = spinnerCoche.selectedItem.toString()
-                val importe = inputImporte.text.toString()
+                // ARREGLO DE LA COMA (Punto 1): Reemplazamos ',' por '.'
+                val importe = inputImporte.text.toString().replace(",", ".")
+                val litros = inputLitros.text.toString().replace(",", ".")
                 
                 if (importe.isNotEmpty()) {
                     val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
                     listaGastos.add(Gasto(
                         coche = coche,
                         tipo = spinnerGasto.selectedItem.toString(),
-                        litros = inputLitros.text.toString(),
+                        litros = litros,
                         km = inputKm.text.toString(),
                         importe = importe,
                         fecha = fecha,
@@ -589,8 +621,8 @@ class MainActivity : Activity() {
 
             for (i in repostajes.indices) {
                 val r = repostajes[i]
-                val litros = r.litros.toDoubleOrNull() ?: 0.0
-                val importe = r.importe.toDoubleOrNull() ?: 0.0
+                val litros = r.litros.replace(",", ".").toDoubleOrNull() ?: 0.0
+                val importe = r.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
                 val kmActual = r.km.toIntOrNull() ?: 0
 
                 totalLitros += litros; totalImporte += importe; litrosAcumulados += litros
@@ -673,7 +705,7 @@ class MainActivity : Activity() {
                 val datosTarta = mutableMapOf<String, Float>()
                 
                 for (g in filtrados) {
-                    val imp = g.importe.toDoubleOrNull() ?: 0.0
+                    val imp = g.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
                     total += imp
                     datosTarta[g.tipo] = (datosTarta[g.tipo] ?: 0f) + imp.toFloat()
                 }
