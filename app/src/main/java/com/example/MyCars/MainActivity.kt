@@ -1,4 +1,4 @@
-package com.example.MyCars // ⚠️ Asegúrate de que coincide con tu paquete
+package com.example.MyCars // ⚠️ Deja tu package original aquí
 
 import android.app.Activity
 import android.app.AlertDialog
@@ -178,7 +178,6 @@ class MainActivity : Activity() {
             layoutParams = params
         }
 
-        // ICONO DE RECORDATORIOS (CALENDARIO)
         val iconCalendar = TextView(this).apply {
             text = "📅"
             textSize = 24f
@@ -418,10 +417,17 @@ class MainActivity : Activity() {
             setOnClickListener {
                 val ficheroFoto = File(getExternalFilesDir(null), "factura_${System.currentTimeMillis()}.jpg")
                 try {
-                    fotoUri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "com.example.MyCars.fileprovider", ficheroFoto)
+                    // AQUÍ ESTÁ EL TRUCO PARA QUE NO FALLE NUNCA
+                    fotoUri = androidx.core.content.FileProvider.getUriForFile(
+                        this@MainActivity,
+                        "$packageName.fileprovider", 
+                        ficheroFoto
+                    )
                     val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply { putExtra(MediaStore.EXTRA_OUTPUT, fotoUri) }
                     startActivityForResult(intent, 400)
-                } catch (e: Exception) { Toast.makeText(this@MainActivity, "Error cámara", Toast.LENGTH_SHORT).show() }
+                } catch (e: Exception) { 
+                    Toast.makeText(this@MainActivity, "Error cámara: ${e.message}", Toast.LENGTH_LONG).show() 
+                }
             }
         }
 
