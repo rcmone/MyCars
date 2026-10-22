@@ -893,7 +893,7 @@ class MainActivity : Activity() {
                     var page = pdfDocument.startPage(pageInfo)
                     var canvas = page.canvas
                     
-                    val textPaint = TextPaint().apply { color = Color.BLACK }
+                    val textPaint = TextPaint().apply { color = Color.BLACK; isAntiAlias = true }
                     val linePaint = Paint().apply { color = Color.LTGRAY; strokeWidth = 1f }
                     
                     var y = 60f
@@ -901,7 +901,7 @@ class MainActivity : Activity() {
                     textPaint.textSize = 24f; textPaint.isFakeBoldText = true
                     canvas.drawText("Reporte de Gastos - MyCars", 40f, y, textPaint)
                     
-                    // Icono de la App (Esquina superior derecha)
+                    // Icono de la App
                     try {
                         val icon = BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
                         val scaledIcon = Bitmap.createScaledBitmap(icon, 60, 60, true)
@@ -932,20 +932,27 @@ class MainActivity : Activity() {
                     
                     // Filas Tabla
                     for (gasto in seleccionados) {
-                        // Calcular altura aproximada para la fila
-                        var alturaFila = 20f
                         var obsLayout: StaticLayout? = null
+                        var obsHeight = 0f
+                        
                         if (gasto.observaciones.isNotEmpty()) {
-                            val textoObs = "Obs: ${gasto.observaciones}"
-                            obsLayout = StaticLayout.Builder.obtain(textoObs, 0, textoObs.length, textPaint, 515)
+                            val obsText = "Obs: ${gasto.observaciones}"
+                            val obsPaint = TextPaint().apply { 
+                                color = Color.DKGRAY 
+                                textSize = 10f 
+                                isAntiAlias = true
+                            }
+                            obsLayout = StaticLayout.Builder.obtain(obsText, 0, obsText.length, obsPaint, 515)
                                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                                 .setLineSpacing(0f, 1.2f)
                                 .setIncludePad(false)
                                 .build()
-                            alturaFila += obsLayout.height + 5f
+                            obsHeight = obsLayout.height.toFloat()
                         }
-
-                        if (y + alturaFila > 780f) {
+                        
+                        val totalRowHeight = 20f + obsHeight + (if (obsHeight > 0) 10f else 0f)
+                        
+                        if (y + totalRowHeight > 780f) {
                             pdfDocument.finishPage(page)
                             page = pdfDocument.startPage(pageInfo)
                             canvas = page.canvas
@@ -954,8 +961,11 @@ class MainActivity : Activity() {
                         
                         if (isAlternate) {
                             val bgPaint = Paint().apply { color = Color.parseColor("#F5F5F5") }
-                            canvas.drawRect(30f, y - 15f, 565f, y + alturaFila - 5f, bgPaint)
+                            canvas.drawRect(30f, y - 15f, 565f, y + totalRowHeight - 5f, bgPaint)
                         }
+                        
+                        textPaint.textSize = 12f
+                        textPaint.color = Color.BLACK
                         
                         canvas.drawText(gasto.fecha, 40f, y, textPaint)
                         val txtCoche = if(gasto.coche.length > 15) gasto.coche.take(15)+"..." else gasto.coche
@@ -964,16 +974,14 @@ class MainActivity : Activity() {
                         canvas.drawText("${gasto.importe} €", 340f, y, textPaint)
                         canvas.drawText(gasto.km, 440f, y, textPaint)
                         
-                        y += 20f // Espacio para la fila principal
+                        y += 20f
                         
                         if (obsLayout != null) {
-                            textPaint.color = Color.DKGRAY
                             canvas.save()
                             canvas.translate(40f, y)
                             obsLayout.draw(canvas)
                             canvas.restore()
-                            textPaint.color = Color.BLACK
-                            y += obsLayout.height + 5f
+                            y += obsHeight + 10f
                         }
                         
                         totalImporte += gasto.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
