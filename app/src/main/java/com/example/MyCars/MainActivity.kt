@@ -896,35 +896,38 @@ class MainActivity : Activity() {
                     val textPaint = TextPaint().apply { color = Color.BLACK; isAntiAlias = true }
                     val linePaint = Paint().apply { color = Color.LTGRAY; strokeWidth = 1f }
                     
-                    var y = 60f
+                    var currentY = 60f // Ahora usamos Y para marcar el TOPE superior de la fila, no la línea base.
+
                     // Título
                     textPaint.textSize = 24f; textPaint.isFakeBoldText = true
-                    canvas.drawText("Reporte de Gastos - MyCars", 40f, y, textPaint)
+                    canvas.drawText("Reporte de Gastos - MyCars", 40f, currentY, textPaint)
                     
-                    // Icono de la App
+                    // Icono
                     try {
                         val icon = BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
                         val scaledIcon = Bitmap.createScaledBitmap(icon, 60, 60, true)
                         canvas.drawBitmap(scaledIcon, 495f, 20f, Paint())
                     } catch (e: Exception) {}
 
-                    y += 20f
+                    currentY += 20f
                     linePaint.color = Color.parseColor("#FF9800")
                     linePaint.strokeWidth = 3f
-                    canvas.drawLine(40f, y, 555f, y, linePaint)
-                    y += 30f
+                    canvas.drawLine(40f, currentY, 555f, currentY, linePaint)
+                    currentY += 30f
                     
                     // Cabecera Tabla
                     textPaint.textSize = 12f; textPaint.isFakeBoldText = true
-                    canvas.drawText("Fecha", 40f, y, textPaint)
-                    canvas.drawText("Coche", 120f, y, textPaint)
-                    canvas.drawText("Tipo", 230f, y, textPaint)
-                    canvas.drawText("Importe", 340f, y, textPaint)
-                    canvas.drawText("Km", 440f, y, textPaint)
-                    y += 10f
+                    val headerBaseline = currentY
+                    canvas.drawText("Fecha", 40f, headerBaseline, textPaint)
+                    canvas.drawText("Coche", 120f, headerBaseline, textPaint)
+                    canvas.drawText("Tipo", 230f, headerBaseline, textPaint)
+                    canvas.drawText("Importe", 340f, headerBaseline, textPaint)
+                    canvas.drawText("Km", 440f, headerBaseline, textPaint)
+                    
+                    currentY += 10f
                     linePaint.color = Color.BLACK; linePaint.strokeWidth = 1f
-                    canvas.drawLine(40f, y, 555f, y, linePaint)
-                    y += 20f
+                    canvas.drawLine(40f, currentY, 555f, currentY, linePaint)
+                    currentY += 15f
                     
                     textPaint.isFakeBoldText = false
                     var totalImporte = 0.0
@@ -935,7 +938,6 @@ class MainActivity : Activity() {
                         var obsLayout: StaticLayout? = null
                         var obsHeight = 0f
                         
-                        // Pincel exclusivo para las observaciones
                         val obsPaint = TextPaint().apply { 
                             color = Color.DKGRAY 
                             textSize = 10f 
@@ -952,55 +954,59 @@ class MainActivity : Activity() {
                             obsHeight = obsLayout.height.toFloat()
                         }
                         
-                        val totalRowHeight = 20f + (if (obsLayout != null) obsHeight + 10f else 0f)
+                        // Cálculo de altura exacto:
+                        // 16f (espacio texto principal) + 4f (separación) + obsHeight + 8f (margen inferior)
+                        val rowHeight = 16f + (if (obsLayout != null) 4f + obsHeight else 0f) + 8f
                         
-                        if (y + totalRowHeight > 780f) {
+                        if (currentY + rowHeight > 780f) {
                             pdfDocument.finishPage(page)
                             page = pdfDocument.startPage(pageInfo)
                             canvas = page.canvas
-                            y = 60f
+                            currentY = 60f
                         }
                         
+                        // Fondo alterno (usando currentY como tope superior)
                         if (isAlternate) {
                             val bgPaint = Paint().apply { color = Color.parseColor("#F5F5F5") }
-                            canvas.drawRect(30f, y - 15f, 565f, y + totalRowHeight - 5f, bgPaint)
+                            canvas.drawRect(30f, currentY - 2f, 565f, currentY + rowHeight - 6f, bgPaint)
                         }
                         
-                        textPaint.textSize = 12f
-                        textPaint.color = Color.BLACK
-                        textPaint.isFakeBoldText = false
+                        // Texto principal
+                        textPaint.textSize = 12f; textPaint.color = Color.BLACK
+                        val mainBaseline = currentY + 12f // Línea base del texto principal
                         
-                        canvas.drawText(gasto.fecha, 40f, y, textPaint)
+                        canvas.drawText(gasto.fecha, 40f, mainBaseline, textPaint)
                         val txtCoche = if(gasto.coche.length > 15) gasto.coche.take(15)+"..." else gasto.coche
-                        canvas.drawText(txtCoche, 120f, y, textPaint)
-                        canvas.drawText(gasto.tipo, 230f, y, textPaint)
-                        canvas.drawText("${gasto.importe} €", 340f, y, textPaint)
-                        canvas.drawText(gasto.km, 440f, y, textPaint)
+                        canvas.drawText(txtCoche, 120f, mainBaseline, textPaint)
+                        canvas.drawText(gasto.tipo, 230f, mainBaseline, textPaint)
+                        canvas.drawText("${gasto.importe} €", 340f, mainBaseline, textPaint)
+                        canvas.drawText(gasto.km, 440f, mainBaseline, textPaint)
                         
+                        // Texto observaciones
                         if (obsLayout != null) {
                             canvas.save()
-                            canvas.translate(40f, y + 5f)
+                            canvas.translate(40f, mainBaseline + 4f) // 4f de separación bajo el texto principal
                             obsLayout.draw(canvas)
                             canvas.restore()
                         }
                         
-                        y += totalRowHeight
+                        currentY += rowHeight
                         totalImporte += gasto.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
                         isAlternate = !isAlternate
                     }
                     
                     // Total
-                    y += 10f
+                    currentY += 5f
                     linePaint.color = Color.BLACK
-                    canvas.drawLine(40f, y, 555f, y, linePaint)
-                    y += 20f
+                    canvas.drawLine(40f, currentY, 555f, currentY, linePaint)
+                    currentY += 20f
                     textPaint.isFakeBoldText = true
-                    canvas.drawText("TOTAL:", 340f, y, textPaint)
-                    canvas.drawText("%.2f €".format(totalImporte), 440f, y, textPaint)
+                    canvas.drawText("TOTAL:", 340f, currentY, textPaint)
+                    canvas.drawText("%.2f €".format(totalImporte), 440f, currentY, textPaint)
                     
                     pdfDocument.finishPage(page)
 
-                    // PÁGINAS DE ADJUNTOS (FOTOS)
+                    // PÁGINAS DE ADJUNTOS
                     for (gasto in seleccionados) {
                         if (gasto.documentoUri != null) {
                             try {
