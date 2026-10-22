@@ -935,14 +935,16 @@ class MainActivity : Activity() {
                         var obsLayout: StaticLayout? = null
                         var obsHeight = 0f
                         
+                        // Pincel exclusivo para las observaciones
+                        val obsPaint = TextPaint().apply { 
+                            color = Color.DKGRAY 
+                            textSize = 10f 
+                            isAntiAlias = true 
+                        }
+                        
                         if (gasto.observaciones.isNotEmpty()) {
-                            val obsText = "Obs: ${gasto.observaciones}"
-                            val obsPaint = TextPaint().apply { 
-                                color = Color.DKGRAY 
-                                textSize = 10f 
-                                isAntiAlias = true
-                            }
-                            obsLayout = StaticLayout.Builder.obtain(obsText, 0, obsText.length, obsPaint, 515)
+                            val textoObs = "Obs: ${gasto.observaciones}"
+                            obsLayout = StaticLayout.Builder.obtain(textoObs, 0, textoObs.length, obsPaint, 515)
                                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                                 .setLineSpacing(0f, 1.2f)
                                 .setIncludePad(false)
@@ -950,7 +952,7 @@ class MainActivity : Activity() {
                             obsHeight = obsLayout.height.toFloat()
                         }
                         
-                        val totalRowHeight = 20f + obsHeight + (if (obsHeight > 0) 10f else 0f)
+                        val totalRowHeight = 20f + (if (obsLayout != null) obsHeight + 10f else 0f)
                         
                         if (y + totalRowHeight > 780f) {
                             pdfDocument.finishPage(page)
@@ -966,6 +968,7 @@ class MainActivity : Activity() {
                         
                         textPaint.textSize = 12f
                         textPaint.color = Color.BLACK
+                        textPaint.isFakeBoldText = false
                         
                         canvas.drawText(gasto.fecha, 40f, y, textPaint)
                         val txtCoche = if(gasto.coche.length > 15) gasto.coche.take(15)+"..." else gasto.coche
@@ -974,16 +977,14 @@ class MainActivity : Activity() {
                         canvas.drawText("${gasto.importe} €", 340f, y, textPaint)
                         canvas.drawText(gasto.km, 440f, y, textPaint)
                         
-                        y += 20f
-                        
                         if (obsLayout != null) {
                             canvas.save()
-                            canvas.translate(40f, y)
+                            canvas.translate(40f, y + 5f)
                             obsLayout.draw(canvas)
                             canvas.restore()
-                            y += obsHeight + 10f
                         }
                         
+                        y += totalRowHeight
                         totalImporte += gasto.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
                         isAlternate = !isAlternate
                     }
