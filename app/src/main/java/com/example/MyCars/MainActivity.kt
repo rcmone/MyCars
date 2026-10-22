@@ -23,6 +23,9 @@ import android.os.Bundle
 import android.provider.MediaStore
 import android.text.Editable
 import android.text.InputType
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
@@ -316,7 +319,7 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // GENERAR PDF PROFESIONAL CON IMÁGENES
+    // GENERAR PDF PROFESIONAL
     // ==========================================
     fun generarPDF() {
         if (seleccionados.isEmpty()) {
@@ -884,14 +887,13 @@ class MainActivity : Activity() {
             val uri: Uri? = data?.data
             
             if (requestCode == 700 && uri != null) {
-                // GENERAR EL PDF PROFESIONAL
                 try {
                     val pdfDocument = PdfDocument()
                     val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
                     var page = pdfDocument.startPage(pageInfo)
                     var canvas = page.canvas
                     
-                    val textPaint = Paint().apply { color = Color.BLACK }
+                    val textPaint = TextPaint().apply { color = Color.BLACK }
                     val linePaint = Paint().apply { color = Color.LTGRAY; strokeWidth = 1f }
                     
                     var y = 60f
@@ -907,7 +909,7 @@ class MainActivity : Activity() {
                     } catch (e: Exception) {}
 
                     y += 20f
-                    linePaint.color = Color.parseColor("#FF9800") // Línea naranja
+                    linePaint.color = Color.parseColor("#FF9800")
                     linePaint.strokeWidth = 3f
                     canvas.drawLine(40f, y, 555f, y, linePaint)
                     y += 30f
@@ -915,11 +917,10 @@ class MainActivity : Activity() {
                     // Cabecera Tabla
                     textPaint.textSize = 12f; textPaint.isFakeBoldText = true
                     canvas.drawText("Fecha", 40f, y, textPaint)
-                    canvas.drawText("Coche", 110f, y, textPaint)
-                    canvas.drawText("Tipo", 210f, y, textPaint)
-                    canvas.drawText("Importe", 320f, y, textPaint)
-                    canvas.drawText("Km", 410f, y, textPaint)
-                    canvas.drawText("Obs.", 480f, y, textPaint)
+                    canvas.drawText("Coche", 120f, y, textPaint)
+                    canvas.drawText("Tipo", 230f, y, textPaint)
+                    canvas.drawText("Importe", 340f, y, textPaint)
+                    canvas.drawText("Km", 440f, y, textPaint)
                     y += 10f
                     linePaint.color = Color.BLACK; linePaint.strokeWidth = 1f
                     canvas.drawLine(40f, y, 555f, y, linePaint)
@@ -931,7 +932,20 @@ class MainActivity : Activity() {
                     
                     // Filas Tabla
                     for (gasto in seleccionados) {
-                        if (y > 780f) {
+                        // Calcular altura aproximada para la fila
+                        var alturaFila = 20f
+                        var obsLayout: StaticLayout? = null
+                        if (gasto.observaciones.isNotEmpty()) {
+                            val textoObs = "Obs: ${gasto.observaciones}"
+                            obsLayout = StaticLayout.Builder.obtain(textoObs, 0, textoObs.length, textPaint, 515)
+                                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                                .setLineSpacing(0f, 1.2f)
+                                .setIncludePad(false)
+                                .build()
+                            alturaFila += obsLayout.height + 5f
+                        }
+
+                        if (y + alturaFila > 780f) {
                             pdfDocument.finishPage(page)
                             page = pdfDocument.startPage(pageInfo)
                             canvas = page.canvas
@@ -940,19 +954,28 @@ class MainActivity : Activity() {
                         
                         if (isAlternate) {
                             val bgPaint = Paint().apply { color = Color.parseColor("#F5F5F5") }
-                            canvas.drawRect(30f, y - 15f, 565f, y + 5f, bgPaint)
+                            canvas.drawRect(30f, y - 15f, 565f, y + alturaFila - 5f, bgPaint)
                         }
                         
                         canvas.drawText(gasto.fecha, 40f, y, textPaint)
                         val txtCoche = if(gasto.coche.length > 15) gasto.coche.take(15)+"..." else gasto.coche
-                        canvas.drawText(txtCoche, 110f, y, textPaint)
-                        canvas.drawText(gasto.tipo, 210f, y, textPaint)
-                        canvas.drawText("${gasto.importe} €", 320f, y, textPaint)
-                        canvas.drawText(gasto.km, 410f, y, textPaint)
-                        val txtObs = if(gasto.observaciones.length > 12) gasto.observaciones.take(12)+"..." else gasto.observaciones
-                        canvas.drawText(txtObs, 480f, y, textPaint)
+                        canvas.drawText(txtCoche, 120f, y, textPaint)
+                        canvas.drawText(gasto.tipo, 230f, y, textPaint)
+                        canvas.drawText("${gasto.importe} €", 340f, y, textPaint)
+                        canvas.drawText(gasto.km, 440f, y, textPaint)
                         
-                        y += 20f
+                        y += 20f // Espacio para la fila principal
+                        
+                        if (obsLayout != null) {
+                            textPaint.color = Color.DKGRAY
+                            canvas.save()
+                            canvas.translate(40f, y)
+                            obsLayout.draw(canvas)
+                            canvas.restore()
+                            textPaint.color = Color.BLACK
+                            y += obsLayout.height + 5f
+                        }
+                        
                         totalImporte += gasto.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
                         isAlternate = !isAlternate
                     }
@@ -963,8 +986,8 @@ class MainActivity : Activity() {
                     canvas.drawLine(40f, y, 555f, y, linePaint)
                     y += 20f
                     textPaint.isFakeBoldText = true
-                    canvas.drawText("TOTAL:", 320f, y, textPaint)
-                    canvas.drawText("%.2f €".format(totalImporte), 410f, y, textPaint)
+                    canvas.drawText("TOTAL:", 340f, y, textPaint)
+                    canvas.drawText("%.2f €".format(totalImporte), 440f, y, textPaint)
                     
                     pdfDocument.finishPage(page)
 
@@ -986,7 +1009,6 @@ class MainActivity : Activity() {
                                     }
                                     canvas.drawText("Factura: ${gasto.coche} - ${gasto.fecha}", 40f, 50f, headerPaint)
                                     
-                                    // Escalar imagen
                                     val maxWidth = 515f
                                     val maxHeight = 700f
                                     val ratio = Math.min(maxWidth / bitmap.width, maxHeight / bitmap.height)
@@ -994,7 +1016,6 @@ class MainActivity : Activity() {
                                     matrix.postScale(ratio, ratio)
                                     val scaledBitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
                                     
-                                    // Centrar imagen
                                     val left = (595 - scaledBitmap.width) / 2
                                     val top = 80f
                                     canvas.drawBitmap(scaledBitmap, left.toFloat(), top, Paint())
@@ -1002,7 +1023,7 @@ class MainActivity : Activity() {
                                     pdfDocument.finishPage(page)
                                 }
                             } catch (e: Exception) {
-                                e.printStackTrace() // Ignorar si el archivo no es una imagen válida
+                                e.printStackTrace()
                             }
                         }
                     }
