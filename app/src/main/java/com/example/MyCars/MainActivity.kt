@@ -226,7 +226,14 @@ class MainActivity : Activity() {
                     text = "${g.coche} - ${g.tipo}"; setTextColor(Color.WHITE); textSize = 18f; setTypeface(null, Typeface.BOLD)
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                 }
-                val txtImporte = TextView(this).apply { text = "${g.importe} €"; setTextColor(Color.WHITE); textSize = 20f; setTypeface(null, Typeface.BOLD); setPadding(0, 0, 20, 0) }
+                
+                // ICONO DE EDITAR
+                val btnEdit = TextView(this).apply {
+                    text = "✏️"; textSize = 20f; setPadding(0, 0, 15, 0)
+                    setOnClickListener { mostrarFormularioGasto(g) } 
+                }
+
+                val txtImporte = TextView(this).apply { text = "${g.importe} €"; setTextColor(Color.WHITE); textSize = 20f; setTypeface(null, Typeface.BOLD); setPadding(0, 0, 15, 0) }
                 
                 val btnDelete = TextView(this).apply {
                     text = "🗑️"; textSize = 20f
@@ -242,7 +249,7 @@ class MainActivity : Activity() {
                 }
 
                 topRow.addView(checkBox)
-                topRow.addView(txtTitulo); topRow.addView(txtImporte); topRow.addView(btnDelete)
+                topRow.addView(txtTitulo); topRow.addView(btnEdit); topRow.addView(txtImporte); topRow.addView(btnDelete)
 
                 val botRow = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, 10, 0, 0) }
                 val txtSubtitulo = TextView(this).apply {
@@ -292,7 +299,7 @@ class MainActivity : Activity() {
             background = GradientDrawable().apply { setColor(orangeColor); cornerRadius = 50f }
             val params = FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT)
             params.gravity = Gravity.BOTTOM or Gravity.END; params.setMargins(0, 0, 50, 50)
-            layoutParams = params; setOnClickListener { mostrarFormularioNuevoGasto() }
+            layoutParams = params; setOnClickListener { mostrarFormularioGasto() } // Llamada sin parámetros para crear uno nuevo
         }
         rootLayout.addView(fab)
     }
@@ -336,9 +343,9 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // FORMULARIO NUEVO GASTO
+    // FORMULARIO NUEVO/EDITAR GASTO
     // ==========================================
-    fun mostrarFormularioNuevoGasto() {
+    fun mostrarFormularioGasto(gastoEditar: Gasto? = null) {
         contentLayout.removeAllViews(); rootLayout.removeAllViews()
         rootLayout.addView(contentLayout, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         uriSeleccionada = null
@@ -348,7 +355,10 @@ class MainActivity : Activity() {
 
         val header = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         val btnBack = TextView(this).apply { text = "← Volver"; setTextColor(orangeColor); textSize = 18f; setOnClickListener { mostrarPantallaPrincipal() } }
-        val title = TextView(this).apply { text = "  Nuevo Gasto"; setTextColor(Color.WHITE); textSize = 24f; setTypeface(null, Typeface.BOLD) }
+        
+        val titleText = if (gastoEditar == null) "  Nuevo Gasto" else "  Editar Gasto"
+        val title = TextView(this).apply { text = titleText; setTextColor(Color.WHITE); textSize = 24f; setTypeface(null, Typeface.BOLD) }
+        
         header.addView(btnBack); header.addView(title)
         layout.addView(header, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply { setMargins(0,0,0,40) })
 
@@ -436,6 +446,27 @@ class MainActivity : Activity() {
 
         this.txtArchivoGlobal = txtArchivoSeleccionado
 
+        // --- RELLENAR DATOS SI ESTAMOS EDITANDO ---
+        if (gastoEditar != null) {
+            inputImporte.setText(gastoEditar.importe)
+            inputLitros.setText(gastoEditar.litros)
+            inputKm.setText(gastoEditar.km)
+            inputObservaciones.setText(gastoEditar.observaciones)
+            checkLleno.isChecked = gastoEditar.depositoLleno
+            
+            val indexCoche = listaCoches.indexOf(gastoEditar.coche)
+            if (indexCoche >= 0) spinnerCoche.setSelection(indexCoche)
+            
+            val indexTipo = tipos.indexOf(gastoEditar.tipo)
+            if (indexTipo >= 0) spinnerGasto.setSelection(indexTipo)
+            
+            if (gastoEditar.documentoUri != null) {
+                uriSeleccionada = Uri.parse(gastoEditar.documentoUri)
+                txtArchivoSeleccionado.text = "✅ Archivo ya adjunto"
+            }
+        }
+        // ------------------------------------------
+
         val watcherCalculadora = object : TextWatcher {
             override fun afterTextChanged(s: Editable?) {
                 val imp = inputImporte.text.toString().replace(",", ".").toDoubleOrNull() ?: 0.0
@@ -460,15 +491,53 @@ class MainActivity : Activity() {
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
+        // Forzamos la comprobación inicial por si estamos editando un gasto de tipo "Mantenimiento"
+        if (gastoEditar != null) {
+            if (gastoEditar.tipo == "Combustible") {
+                inputLitros.visibility = View.VISIBLE; checkLleno.visibility = View.VISIBLE
+                inputKm.visibility = View.VISIBLE; txtPrecioLitro.visibility = View.VISIBLE; layoutExtras.visibility = View.GONE
+            } else {
+                inputLitros.visibility = View.GONE; checkLleno.visibility = View.GONE
+                inputKm.visibility = View.VISIBLE; txtPrecioLitro.visibility = View.GONE; layoutExtras.visibility = View.VISIBLE
+            }
+        }
+
         val btnGuardar = Button(this).apply {
             text = "Guardar Gasto"; setBackgroundColor(orangeColor); setTextColor(Color.BLACK); setTypeface(null, Typeface.BOLD); setPadding(0, 30, 0, 30)
             setOnClickListener {
                 val coche = spinnerCoche.selectedItem.toString()
                 val importe = inputImporte.text.toString().replace(",", ".")
                 if (importe.isNotEmpty()) {
-                    val fecha = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
-                    listaGastos.add(Gasto(coche, spinnerGasto.selectedItem.toString(), inputLitros.text.toString().replace(",", "."), inputKm.text.toString(), importe, fecha, cardColors[colorIndex % cardColors.size], checkLleno.isChecked, inputObservaciones.text.toString(), uriSeleccionada?.toString()))
-                    colorIndex++; guardarDatos(); Toast.makeText(this@MainActivity, "Guardado", Toast.LENGTH_SHORT).show(); mostrarPantallaPrincipal()
+                    // Si estamos editando, mantenemos la fecha y el color originales
+                    val fecha = gastoEditar?.fecha ?: SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date())
+                    val colorHex = gastoEditar?.colorHex ?: cardColors[colorIndex % cardColors.size]
+                    
+                    val nuevoGasto = Gasto(
+                        coche, 
+                        spinnerGasto.selectedItem.toString(), 
+                        inputLitros.text.toString().replace(",", "."), 
+                        inputKm.text.toString(), 
+                        importe, 
+                        fecha, 
+                        colorHex, 
+                        checkLleno.isChecked, 
+                        inputObservaciones.text.toString(), 
+                        uriSeleccionada?.toString()
+                    )
+
+                    if (gastoEditar == null) {
+                        // CREAR
+                        listaGastos.add(nuevoGasto)
+                        colorIndex++
+                    } else {
+                        // EDITAR
+                        val index = listaGastos.indexOf(gastoEditar)
+                        if (index != -1) {
+                            listaGastos[index] = nuevoGasto
+                        }
+                    }
+                    
+                    guardarDatos(); Toast.makeText(this@MainActivity, "Guardado", Toast.LENGTH_SHORT).show(); mostrarPantallaPrincipal()
                 } else Toast.makeText(this@MainActivity, "El importe es obligatorio", Toast.LENGTH_SHORT).show()
             }
         }
@@ -650,7 +719,7 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // PANTALLA ESTADÍSTICAS (CORREGIDA)
+    // PANTALLA ESTADÍSTICAS
     // ==========================================
     fun mostrarPantallaEstadisticas() {
         contentLayout.removeAllViews(); rootLayout.removeAllViews()
@@ -676,7 +745,6 @@ class MainActivity : Activity() {
         fun calcularStats(cocheSeleccionado: String) {
             statsLayout.removeAllViews()
             
-            // 1. Obtener todos los gastos del coche que tengan Kilómetros
             val gastosConKm = listaGastos.filter { 
                 (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) && 
                 it.km.isNotEmpty() && it.km.toIntOrNull() != null 
@@ -696,11 +764,11 @@ class MainActivity : Activity() {
                 return
             }
 
-            // 2. Filtrar repostajes para consumo y precio medio
             val repostajes = gastosConKm.filter { it.tipo == "Combustible" }
             
             var totalLitros = 0.0
             var totalImporteCombustible = 0.0
+            
             var consumos = mutableListOf<Double>()
             var litrosAcumulados = 0.0
             var ultimoKmLleno = -1
@@ -714,21 +782,19 @@ class MainActivity : Activity() {
                 val importe = r.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
                 val kmActual = r.km.toIntOrNull() ?: 0
 
-                totalLitros += litros
-                totalImporteCombustible += importe
+                if (litros > 0) {
+                    totalLitros += litros
+                    totalImporteCombustible += importe
+                }
 
-                // Lógica de consumo y coste real
                 if (!primerLlenoEncontrado) {
                     if (r.depositoLleno) {
                         primerLlenoEncontrado = true
                         ultimoKmLleno = kmActual
-                        // No sumamos este importe al coste real porque es el inicio
                     } else {
-                        // Si no es lleno, lo sumamos normal (aunque no tengamos consumo)
                         costeCombustibleReal += importe
                     }
                 } else {
-                    // Ya estamos en un ciclo
                     costeCombustibleReal += importe
                     litrosAcumulados += litros
 
@@ -743,7 +809,6 @@ class MainActivity : Activity() {
                 }
             }
 
-            // 3. Calcular otros gastos (Mantenimiento + Otros)
             var totalOtrosGastos = 0.0
             for (g in gastosConKm) {
                 if (g.tipo != "Combustible") {
@@ -768,8 +833,8 @@ class MainActivity : Activity() {
             else agregarTarjeta("Consumo Medio", "--", "Faltan repostajes 'Llenos'")
 
             if (totalLitros > 0) agregarTarjeta("Precio Medio Combustible", "%.3f".format(totalImporteCombustible / totalLitros), "€/L")
+            else agregarTarjeta("Precio Medio Combustible", "--", "Faltan datos")
 
-            // Distancia usada para costes de combustible
             val primerLleno = repostajes.firstOrNull { it.depositoLleno }
             val ultimoLleno = repostajes.lastOrNull { it.depositoLleno }
 
@@ -786,7 +851,6 @@ class MainActivity : Activity() {
                 agregarTarjeta("Coste solo Gasolina/Km", "--", "Faltan repostajes")
             }
 
-            // Coste REAL (Todo)
             val gastoTotalReal = costeCombustibleReal + totalOtrosGastos
             var kmTotalesRealesParaCoste = kmTotalesReales
             
