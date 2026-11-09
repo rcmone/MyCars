@@ -650,7 +650,7 @@ class MainActivity : Activity() {
     }
 
     // ==========================================
-    // PANTALLA ESTADÍSTICAS
+    // PANTALLA ESTADÍSTICAS (CORREGIDA)
     // ==========================================
     fun mostrarPantallaEstadisticas() {
         contentLayout.removeAllViews(); rootLayout.removeAllViews()
@@ -675,78 +675,143 @@ class MainActivity : Activity() {
 
         fun calcularStats(cocheSeleccionado: String) {
             statsLayout.removeAllViews()
-            val repostajes = listaGastos.filter { 
-                (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) && it.tipo == "Combustible" && it.litros.isNotEmpty() && it.km.isNotEmpty() 
+            
+            // 1. Obtener todos los gastos del coche que tengan Kilómetros
+            val gastosConKm = listaGastos.filter { 
+                (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) && 
+                it.km.isNotEmpty() && it.km.toIntOrNull() != null 
             }.sortedBy { it.km.toIntOrNull() ?: 0 }
 
-            if (repostajes.size < 2) {
-                statsLayout.addView(TextView(this).apply { text = "Necesitas al menos 2 repostajes con Km."; setTextColor(Color.LTGRAY) })
-            } else {
-                var totalLitros = 0.0; var totalImporte = 0.0
-                var consumos = mutableListOf<Double>(); var litrosAcumulados = 0.0; var ultimoKmLleno = repostajes.first().km.toIntOrNull() ?: 0
-
-                for (i in repostajes.indices) {
-                    val r = repostajes[i]
-                    val litros = r.litros.replace(",", ".").toDoubleOrNull() ?: 0.0
-                    val importe = r.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
-                    val kmActual = r.km.toIntOrNull() ?: 0
-                    totalLitros += litros; totalImporte += importe; litrosAcumulados += litros
-                    if (r.depositoLleno && i > 0) {
-                        val kmRecorridos = kmActual - ultimoKmLleno
-                        if (kmRecorridos > 0) consumos.add((litrosAcumulados / kmRecorridos) * 100)
-                        litrosAcumulados = 0.0; ultimoKmLleno = kmActual
-                    }
-                }
-
-                fun agregarTarjeta(titulo: String, valor: String, sufijo: String) {
-                    val card = LinearLayout(this).apply {
-                        orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40)
-                        background = GradientDrawable().apply { setColor(Color.parseColor("#222222")); cornerRadius = 30f }
-                        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 20) }
-                    }
-                    val tvTitulo = TextView(this).apply { text = titulo; setTextColor(Color.LTGRAY); textSize = 16f }
-                    val rowVal = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
-                    val tvValor = TextView(this).apply { text = valor; setTextColor(orangeColor); textSize = 32f; setTypeface(null, Typeface.BOLD) }
-                    val tvSufijo = TextView(this).apply { text = " $sufijo"; setTextColor(Color.WHITE); textSize = 16f; setPadding(0, 0, 0, 5) }
-                    rowVal.addView(tvValor); rowVal.addView(tvSufijo); card.addView(tvTitulo); card.addView(rowVal); statsLayout.addView(card)
-                }
-
-                if (consumos.isNotEmpty()) agregarTarjeta("Consumo Medio", "%.2f".format(consumos.average()), "L/100km")
-                else agregarTarjeta("Consumo Medio", "--", "Faltan repostajes 'Llenos'")
-                if (totalLitros > 0) agregarTarjeta("Precio Medio Combustible", "%.3f".format(totalImporte / totalLitros), "€/L")
-                val kmTotalesCombustible = (repostajes.last().km.toIntOrNull() ?: 0) - (repostajes.first().km.toIntOrNull() ?: 0)
-                if (kmTotalesCombustible > 0) agregarTarjeta("Coste solo Gasolina/Km", "%.3f".format(totalImporte / kmTotalesCombustible), "€/km")
+            if (gastosConKm.size < 2) {
+                statsLayout.addView(TextView(this).apply { text = "Necesitas al menos 2 gastos con Km para calcular."; setTextColor(Color.LTGRAY) })
+                return
             }
 
-            val gastosCoche = listaGastos.filter { (cocheSeleccionado == "Todos los coches" || it.coche == cocheSeleccionado) }
-            val gastosConKm = gastosCoche.filter { it.km.isNotEmpty() && it.km.toIntOrNull() != null }
+            val kmMin = gastosConKm.first().km.toIntOrNull() ?: 0
+            val kmMax = gastosConKm.last().km.toIntOrNull() ?: 0
+            val kmTotalesReales = kmMax - kmMin
 
-            if (gastosConKm.size >= 2) {
-                val listaKms = gastosConKm.map { it.km.toInt() }
-                val kmMin = listaKms.minOrNull() ?: 0; val kmMax = listaKms.maxOrNull() ?: 0
-                val kmTotalesReales = kmMax - kmMin
-                if (kmTotalesReales > 0) {
-                    var gastoTotalReal = 0.0
-                    for (g in gastosCoche) gastoTotalReal += g.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
-                    val costeRealKm = gastoTotalReal / kmTotalesReales
+            if (kmTotalesReales <= 0) {
+                statsLayout.addView(TextView(this).apply { text = "Los datos de kilómetros no son válidos."; setTextColor(Color.LTGRAY) })
+                return
+            }
 
-                    val card = LinearLayout(this).apply {
-                        orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40)
-                        background = GradientDrawable().apply { setColor(Color.parseColor("#2A1A10")); setStroke(4, orangeColor); cornerRadius = 30f }
-                        layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 10, 0, 20) }
+            // 2. Filtrar repostajes para consumo y precio medio
+            val repostajes = gastosConKm.filter { it.tipo == "Combustible" }
+            
+            var totalLitros = 0.0
+            var totalImporteCombustible = 0.0
+            var consumos = mutableListOf<Double>()
+            var litrosAcumulados = 0.0
+            var ultimoKmLleno = -1
+            
+            var costeCombustibleReal = 0.0
+            var primerLlenoEncontrado = false
+
+            for (i in repostajes.indices) {
+                val r = repostajes[i]
+                val litros = r.litros.replace(",", ".").toDoubleOrNull() ?: 0.0
+                val importe = r.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
+                val kmActual = r.km.toIntOrNull() ?: 0
+
+                totalLitros += litros
+                totalImporteCombustible += importe
+
+                // Lógica de consumo y coste real
+                if (!primerLlenoEncontrado) {
+                    if (r.depositoLleno) {
+                        primerLlenoEncontrado = true
+                        ultimoKmLleno = kmActual
+                        // No sumamos este importe al coste real porque es el inicio
+                    } else {
+                        // Si no es lleno, lo sumamos normal (aunque no tengamos consumo)
+                        costeCombustibleReal += importe
                     }
-                    val tvTitulo = TextView(this).apply { text = "Coste REAL por Km (Todo)"; setTextColor(orangeColor); textSize = 16f; setTypeface(null, Typeface.BOLD) }
-                    val rowVal = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
-                    val tvValor = TextView(this).apply { text = "%.3f".format(costeRealKm); setTextColor(Color.WHITE); textSize = 36f; setTypeface(null, Typeface.BOLD) }
-                    val tvSufijo = TextView(this).apply { text = " €/km"; setTextColor(Color.WHITE); textSize = 16f; setPadding(0, 0, 0, 5) }
-                    val tvDetalle = TextView(this).apply { 
-                        text = "Calculado sobre $kmTotalesReales km.\nGasto total: %.2f €".format(gastoTotalReal); setTextColor(Color.LTGRAY); textSize = 12f; setPadding(0, 10, 0, 0)
+                } else {
+                    // Ya estamos en un ciclo
+                    costeCombustibleReal += importe
+                    litrosAcumulados += litros
+
+                    if (r.depositoLleno) {
+                        val kmRecorridos = kmActual - ultimoKmLleno
+                        if (kmRecorridos > 0) {
+                            consumos.add((litrosAcumulados / kmRecorridos) * 100)
+                        }
+                        litrosAcumulados = 0.0
+                        ultimoKmLleno = kmActual
                     }
-                    rowVal.addView(tvValor); rowVal.addView(tvSufijo); card.addView(tvTitulo); card.addView(rowVal); card.addView(tvDetalle)
-                    statsLayout.addView(card)
                 }
+            }
+
+            // 3. Calcular otros gastos (Mantenimiento + Otros)
+            var totalOtrosGastos = 0.0
+            for (g in gastosConKm) {
+                if (g.tipo != "Combustible") {
+                    totalOtrosGastos += g.importe.replace(",", ".").toDoubleOrNull() ?: 0.0
+                }
+            }
+
+            fun agregarTarjeta(titulo: String, valor: String, sufijo: String) {
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40)
+                    background = GradientDrawable().apply { setColor(Color.parseColor("#222222")); cornerRadius = 30f }
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 0, 0, 20) }
+                }
+                val tvTitulo = TextView(this).apply { text = titulo; setTextColor(Color.LTGRAY); textSize = 16f }
+                val rowVal = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
+                val tvValor = TextView(this).apply { text = valor; setTextColor(orangeColor); textSize = 32f; setTypeface(null, Typeface.BOLD) }
+                val tvSufijo = TextView(this).apply { text = " $sufijo"; setTextColor(Color.WHITE); textSize = 16f; setPadding(0, 0, 0, 5) }
+                rowVal.addView(tvValor); rowVal.addView(tvSufijo); card.addView(tvTitulo); card.addView(rowVal); statsLayout.addView(card)
+            }
+
+            if (consumos.isNotEmpty()) agregarTarjeta("Consumo Medio", "%.2f".format(consumos.average()), "L/100km")
+            else agregarTarjeta("Consumo Medio", "--", "Faltan repostajes 'Llenos'")
+
+            if (totalLitros > 0) agregarTarjeta("Precio Medio Combustible", "%.3f".format(totalImporteCombustible / totalLitros), "€/L")
+
+            // Distancia usada para costes de combustible
+            val primerLleno = repostajes.firstOrNull { it.depositoLleno }
+            val ultimoLleno = repostajes.lastOrNull { it.depositoLleno }
+
+            var kmParaCosteCombustible = 0
+            if (primerLleno != null && ultimoLleno != null && primerLleno != ultimoLleno) {
+                kmParaCosteCombustible = (ultimoLleno.km.toIntOrNull() ?: 0) - (primerLleno.km.toIntOrNull() ?: 0)
             } else {
-                statsLayout.addView(TextView(this).apply { text = "\nAñade más gastos con Km para el Coste Real."; setTextColor(Color.LTGRAY) })
+                kmParaCosteCombustible = kmTotalesReales
+            }
+
+            if (kmParaCosteCombustible > 0 && costeCombustibleReal > 0) {
+                agregarTarjeta("Coste solo Gasolina/Km", "%.3f".format(costeCombustibleReal / kmParaCosteCombustible), "€/km")
+            } else {
+                agregarTarjeta("Coste solo Gasolina/Km", "--", "Faltan repostajes")
+            }
+
+            // Coste REAL (Todo)
+            val gastoTotalReal = costeCombustibleReal + totalOtrosGastos
+            var kmTotalesRealesParaCoste = kmTotalesReales
+            
+            if (primerLleno != null && ultimoLleno != null && primerLleno != ultimoLleno) {
+                kmTotalesRealesParaCoste = (ultimoLleno.km.toIntOrNull() ?: 0) - (primerLleno.km.toIntOrNull() ?: 0)
+            }
+
+            if (kmTotalesRealesParaCoste > 0 && gastoTotalReal > 0) {
+                val costeRealKm = gastoTotalReal / kmTotalesRealesParaCoste
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL; setPadding(40, 40, 40, 40)
+                    background = GradientDrawable().apply { setColor(Color.parseColor("#2A1A10")); setStroke(4, orangeColor); cornerRadius = 30f }
+                    layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { setMargins(0, 10, 0, 20) }
+                }
+                val tvTitulo = TextView(this).apply { text = "Coste REAL por Km (Todo)"; setTextColor(orangeColor); textSize = 16f; setTypeface(null, Typeface.BOLD) }
+                val rowVal = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.BOTTOM }
+                val tvValor = TextView(this).apply { text = "%.3f".format(costeRealKm); setTextColor(Color.WHITE); textSize = 36f; setTypeface(null, Typeface.BOLD) }
+                val tvSufijo = TextView(this).apply { text = " €/km"; setTextColor(Color.WHITE); textSize = 16f; setPadding(0, 0, 0, 5) }
+                val tvDetalle = TextView(this).apply { 
+                    text = "Calculado sobre $kmTotalesRealesParaCoste km.\nGasto total: %.2f € (Combustible + Otros)".format(gastoTotalReal); setTextColor(Color.LTGRAY); textSize = 12f; setPadding(0, 10, 0, 0)
+                }
+                rowVal.addView(tvValor); rowVal.addView(tvSufijo); card.addView(tvTitulo); card.addView(rowVal); card.addView(tvDetalle)
+                statsLayout.addView(card)
+            } else {
+                statsLayout.addView(TextView(this).apply { text = "\nAñade más gastos para calcular el Coste Real."; setTextColor(Color.LTGRAY) })
             }
         }
 
@@ -896,13 +961,11 @@ class MainActivity : Activity() {
                     val textPaint = TextPaint().apply { color = Color.BLACK; isAntiAlias = true }
                     val linePaint = Paint().apply { color = Color.LTGRAY; strokeWidth = 1f }
                     
-                    var currentY = 60f // Ahora usamos Y para marcar el TOPE superior de la fila, no la línea base.
+                    var currentY = 60f
 
-                    // Título
                     textPaint.textSize = 24f; textPaint.isFakeBoldText = true
                     canvas.drawText("Reporte de Gastos - MyCars", 40f, currentY, textPaint)
                     
-                    // Icono
                     try {
                         val icon = BitmapFactory.decodeResource(resources, R.mipmap.ic_launcher)
                         val scaledIcon = Bitmap.createScaledBitmap(icon, 60, 60, true)
@@ -915,7 +978,6 @@ class MainActivity : Activity() {
                     canvas.drawLine(40f, currentY, 555f, currentY, linePaint)
                     currentY += 30f
                     
-                    // Cabecera Tabla
                     textPaint.textSize = 12f; textPaint.isFakeBoldText = true
                     val headerBaseline = currentY
                     canvas.drawText("Fecha", 40f, headerBaseline, textPaint)
@@ -933,7 +995,6 @@ class MainActivity : Activity() {
                     var totalImporte = 0.0
                     var isAlternate = false
                     
-                    // Filas Tabla
                     for (gasto in seleccionados) {
                         var obsLayout: StaticLayout? = null
                         var obsHeight = 0f
@@ -954,8 +1015,6 @@ class MainActivity : Activity() {
                             obsHeight = obsLayout.height.toFloat()
                         }
                         
-                        // Cálculo de altura exacto:
-                        // 16f (espacio texto principal) + 4f (separación) + obsHeight + 8f (margen inferior)
                         val rowHeight = 16f + (if (obsLayout != null) 4f + obsHeight else 0f) + 8f
                         
                         if (currentY + rowHeight > 780f) {
@@ -965,15 +1024,13 @@ class MainActivity : Activity() {
                             currentY = 60f
                         }
                         
-                        // Fondo alterno (usando currentY como tope superior)
                         if (isAlternate) {
                             val bgPaint = Paint().apply { color = Color.parseColor("#F5F5F5") }
                             canvas.drawRect(30f, currentY - 2f, 565f, currentY + rowHeight - 6f, bgPaint)
                         }
                         
-                        // Texto principal
                         textPaint.textSize = 12f; textPaint.color = Color.BLACK
-                        val mainBaseline = currentY + 12f // Línea base del texto principal
+                        val mainBaseline = currentY + 12f
                         
                         canvas.drawText(gasto.fecha, 40f, mainBaseline, textPaint)
                         val txtCoche = if(gasto.coche.length > 15) gasto.coche.take(15)+"..." else gasto.coche
@@ -982,10 +1039,9 @@ class MainActivity : Activity() {
                         canvas.drawText("${gasto.importe} €", 340f, mainBaseline, textPaint)
                         canvas.drawText(gasto.km, 440f, mainBaseline, textPaint)
                         
-                        // Texto observaciones
                         if (obsLayout != null) {
                             canvas.save()
-                            canvas.translate(40f, mainBaseline + 4f) // 4f de separación bajo el texto principal
+                            canvas.translate(40f, mainBaseline + 4f)
                             obsLayout.draw(canvas)
                             canvas.restore()
                         }
@@ -995,7 +1051,6 @@ class MainActivity : Activity() {
                         isAlternate = !isAlternate
                     }
                     
-                    // Total
                     currentY += 5f
                     linePaint.color = Color.BLACK
                     canvas.drawLine(40f, currentY, 555f, currentY, linePaint)
@@ -1006,7 +1061,6 @@ class MainActivity : Activity() {
                     
                     pdfDocument.finishPage(page)
 
-                    // PÁGINAS DE ADJUNTOS
                     for (gasto in seleccionados) {
                         if (gasto.documentoUri != null) {
                             try {
